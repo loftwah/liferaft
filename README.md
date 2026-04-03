@@ -54,6 +54,14 @@ Or do both in one command:
 bun run start:built
 ```
 
+To create local installer artifacts:
+
+```bash
+bun run dist
+```
+
+Packaged builds will be written to `release/`.
+
 ## Test
 
 ```bash
@@ -62,6 +70,29 @@ bun run format:check
 bun test
 bun run typecheck
 ```
+
+## GitHub releases
+
+This repository is configured to publish downloadable desktop builds through GitHub Releases.
+
+Release flow:
+
+1. Update `package.json` to the version you want to ship.
+2. Commit the release changes.
+3. Push a matching git tag such as `v0.2.0`.
+4. GitHub Actions will build macOS, Windows, and Linux packages and attach them to the GitHub release for that tag.
+
+Example:
+
+```bash
+git tag v0.2.0
+git push origin main --follow-tags
+```
+
+Notes:
+
+- The workflow publishes unsigned builds. macOS Gatekeeper and Windows SmartScreen may warn until code signing is added.
+- Release artifacts are produced with `electron-builder` and uploaded from `.github/workflows/release.yml`.
 
 ## Architecture
 

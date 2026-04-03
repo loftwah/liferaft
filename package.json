@@ -2,14 +2,21 @@
   "name": "liferaft",
   "version": "0.1.0",
   "private": true,
+  "productName": "Liferaft",
   "description": "Local, read-only desktop app for indexing and recovering messages and attachments from large MBOX archives.",
   "type": "module",
   "main": "out/main/index.js",
   "author": "OpenAI Codex",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/loftwah/liferaft.git"
+  },
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
+    "dist": "electron-builder --publish never",
+    "release": "electron-builder --publish always",
     "start": "electron-vite preview --skipBuild",
     "start:built": "electron-vite preview",
     "preview": "electron-vite preview",
@@ -17,7 +24,7 @@
     "format:check": "prettier --check .",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
-    "postinstall": "electron-rebuild -f -w better-sqlite3"
+    "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
     "@radix-ui/react-progress": "^1.1.7",
@@ -33,7 +40,6 @@
     "zustand": "^5.0.8"
   },
   "devDependencies": {
-    "@electron/rebuild": "^4.0.1",
     "@tailwindcss/vite": "^4.1.16",
     "@types/better-sqlite3": "^7.6.13",
     "@types/mime-types": "^3.0.1",
@@ -42,9 +48,69 @@
     "@vitejs/plugin-react": "^5.1.0",
     "bun-types": "^1.3.4",
     "electron": "^41.0.0",
+    "electron-builder": "^26.8.1",
     "electron-vite": "^4.0.0",
     "prettier": "^3.8.1",
+    "semver": "^7.7.4",
     "typescript": "^5.9.3",
     "vite": "^8.0.0"
+  },
+  "build": {
+    "appId": "com.loftwah.liferaft",
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "asar": true,
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "!takeout{,/**}",
+      "!release{,/**}",
+      "!output{,/**}",
+      "!tests{,/**}",
+      "!src{,/**}",
+      "!scripts{,/**}",
+      "!build{,/**}",
+      "!.github{,/**}",
+      "!README.md",
+      "!LICENSE",
+      "!electron.vite.config.ts",
+      "!tsconfig.json",
+      "!prompt.txt",
+      "!*.jpg"
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "loftwah",
+        "repo": "liferaft",
+        "releaseType": "release",
+        "publishAutoUpdate": false
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "build/icon.png",
+      "identity": null,
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "win": {
+      "icon": "build/icon.png",
+      "target": [
+        "nsis",
+        "zip"
+      ]
+    },
+    "linux": {
+      "category": "Utility",
+      "icon": "build/icon.png",
+      "target": [
+        "AppImage",
+        "tar.gz"
+      ]
+    }
   }
 }
