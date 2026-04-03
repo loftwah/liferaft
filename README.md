@@ -107,8 +107,14 @@ The current GitHub Release artifacts are unsigned. That is normal for an early-s
 
 macOS:
 
+- macOS may block the app on first launch because the build is not notarized.
 - If Finder says Liferaft cannot be opened, right-click the app and choose `Open`.
 - If macOS still blocks it, open `System Settings` > `Privacy & Security` and allow the app to run.
+- If Gatekeeper still rejects the app after you move it to `/Applications`, remove the quarantine flag and open it again:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/Liferaft.app"
+```
 
 Windows:
 
