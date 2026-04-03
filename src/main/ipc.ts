@@ -45,6 +45,10 @@ export function registerIpc(
   const activeImports = new Map<string, ActiveImport>()
 
   const broadcastProgress = (event: ImportProgressEvent) => {
+    if (mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) {
+      return
+    }
+
     mainWindow.webContents.send('liferaft:import-progress', event)
   }
 

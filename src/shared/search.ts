@@ -1,6 +1,39 @@
 import type { SearchFilters } from './contracts'
 
 const TOKEN_PATTERN = /"([^"]+)"|(\S+)/gu
+const FILE_EXTENSION_PATTERN =
+  /\.(pdf|png|jpe?g|docx?|xlsx?|csv|zip|eml|msg|txt)$/i
+const ATTACHMENT_INTENT_TERMS = new Set([
+  'attachment',
+  'attachments',
+  'attached',
+  'bank',
+  'bill',
+  'certificate',
+  'contract',
+  'cv',
+  'document',
+  'documents',
+  'docs',
+  'driver',
+  'id',
+  'identity',
+  'invoice',
+  'licence',
+  'license',
+  'passport',
+  'payslip',
+  'pdf',
+  'receipt',
+  'resume',
+  'scan',
+  'scanned',
+  'statement',
+  'tax',
+  'visa',
+  'w2',
+  'w9'
+])
 
 export interface ParsedSearchInput {
   text: string
@@ -85,7 +118,7 @@ export function parseSearchInput(input: string): ParsedSearchInput {
   return {
     text: textTokens.join(' ').trim(),
     filters,
-    preferAttachments
+    preferAttachments: preferAttachments || detectAttachmentSearchIntent(input)
   }
 }
 
@@ -93,6 +126,34 @@ export function extractSearchTerms(input: string): string[] {
   return [...input.matchAll(TOKEN_PATTERN)]
     .map((match) => sanitizeSearchToken(match[1] ?? match[2] ?? ''))
     .flat()
+}
+
+export function detectAttachmentSearchIntent(input: string): boolean {
+  const tokens = [...input.matchAll(TOKEN_PATTERN)].map((match) =>
+    (match[1] ?? match[2] ?? '').trim().toLowerCase()
+  )
+
+  if (
+    tokens.some(
+      (token) =>
+        token.startsWith('filename:') ||
+        token.startsWith('filetype:') ||
+        token === 'has:attachment' ||
+        token === 'has:attachments'
+    )
+  ) {
+    return true
+  }
+
+  const normalized = tokens.flatMap((token) => sanitizeSearchToken(token))
+  if (normalized.some((token) => FILE_EXTENSION_PATTERN.test(`.${token}`))) {
+    return true
+  }
+
+  return normalized.some(
+    (token) =>
+      ATTACHMENT_INTENT_TERMS.has(token) || FILE_EXTENSION_PATTERN.test(token)
+  )
 }
 
 export function localDateStartToIso(value: string): string | null {

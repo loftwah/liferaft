@@ -399,30 +399,122 @@ function scoreAttachmentResult(row: SearchResultRow, terms: string[]): number {
   let score = 0
 
   for (const term of terms) {
-    if (filename.includes(term)) {
-      score += 8
-    }
-    if (contentType.includes(term)) {
-      score += 5
-    }
-    if (
-      term === 'pdf' &&
-      (contentType.includes('pdf') || filename.endsWith('.pdf'))
-    ) {
-      score += 10
-    }
+    score += scoreAttachmentTerm(term, filename, contentType)
   }
 
   if (contentType.includes('pdf') || filename.endsWith('.pdf')) {
-    score += 2
+    score += 5
+  }
+
+  if (
+    contentType.startsWith('image/') &&
+    (filename.includes('passport') ||
+      filename.includes('license') ||
+      filename.includes('licence') ||
+      filename.includes('id'))
+  ) {
+    score += 4
   }
 
   if (filename.length > 0) {
-    score += 0.5
+    score += 1
+  } else {
+    score -= 4
+  }
+
+  if (looksLikeGenericAttachmentName(filename)) {
+    score -= 3
   }
 
   score += recencySignal(row.date)
   return score
+}
+
+function scoreAttachmentTerm(
+  term: string,
+  filename: string,
+  contentType: string
+): number {
+  const normalized = term.toLowerCase()
+  let score = 0
+
+  if (!normalized) {
+    return score
+  }
+
+  if (filename === normalized || filename === `.${normalized}`) {
+    score += 18
+  }
+
+  if (
+    filename.startsWith(`${normalized}.`) ||
+    filename.endsWith(`.${normalized}`)
+  ) {
+    score += 12
+  }
+
+  if (filename.includes(normalized)) {
+    score += 8
+  }
+
+  if (contentType.includes(normalized)) {
+    score += 5
+  }
+
+  if (
+    normalized === 'pdf' &&
+    (contentType.includes('pdf') || filename.endsWith('.pdf'))
+  ) {
+    score += 14
+  }
+
+  if (
+    matchesDocumentIntent(normalized) &&
+    (contentType.includes('pdf') ||
+      contentType.startsWith('image/') ||
+      filename.endsWith('.pdf') ||
+      filename.endsWith('.jpg') ||
+      filename.endsWith('.jpeg') ||
+      filename.endsWith('.png'))
+  ) {
+    score += 6
+  }
+
+  return score
+}
+
+function matchesDocumentIntent(term: string): boolean {
+  return [
+    'bank',
+    'bill',
+    'certificate',
+    'contract',
+    'cv',
+    'driver',
+    'identity',
+    'id',
+    'invoice',
+    'licence',
+    'license',
+    'passport',
+    'payslip',
+    'receipt',
+    'resume',
+    'scan',
+    'statement',
+    'tax',
+    'visa',
+    'w2',
+    'w9'
+  ].includes(term)
+}
+
+function looksLikeGenericAttachmentName(filename: string): boolean {
+  if (!filename) {
+    return false
+  }
+
+  return /^(attachment|image|scan|document)[-_ ]?\d*/i.test(filename)
 }
 
 function recencySignal(date: string | null): number {

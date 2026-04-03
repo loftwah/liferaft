@@ -8,6 +8,7 @@ import { isMboxSeparatorLine, unescapeMboxRdLine } from '../src/shared/mbox'
 import { formatSnippetHtml } from '../src/shared/search-snippet'
 import {
   buildFtsMatchQuery,
+  detectAttachmentSearchIntent,
   localDateEndToIso,
   localDateStartToIso,
   parseSearchInput
@@ -188,6 +189,14 @@ describe('database and export safety', () => {
     expect(parsed.filters.dateFrom).toBe('2025-04-01')
     expect(parsed.filters.dateTo).toBe('2025-04-09')
     expect(parsed.preferAttachments).toBe(true)
+  })
+
+  test('detects attachment hunting intent from filename-style queries', () => {
+    expect(detectAttachmentSearchIntent('passport scan pdf')).toBe(true)
+    expect(detectAttachmentSearchIntent('filename:invoice-final.pdf')).toBe(
+      true
+    )
+    expect(detectAttachmentSearchIntent('meeting notes from alice')).toBe(false)
   })
 
   test('escapes search snippets while preserving highlight tags', () => {
