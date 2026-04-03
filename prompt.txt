@@ -1,0 +1,243 @@
+You are in the root of a new git repository.
+Initialise a fresh project and build a production-quality Electron desktop application called Liferaft.
+Liferaft is a local, read-only desktop app for opening large .mbox email archive files, indexing them locally, searching them quickly, viewing messages in a familiar three-pane mail layout, and extracting attachments or exporting selected messages.
+This is NOT an email client.
+Do not implement sending, reply, compose, SMTP, IMAP, POP, sync, account login, cloud features, AI features, OCR, tagging systems, or anything unrelated to local archive viewing and recovery.
+--------------------------------------------------
+CORE USER SCENARIO
+--------------------------------------------------
+The user has lost access to their mailbox and needs to recover an important document from a large .mbox backup (12GB–30GB+).
+They are under time pressure.
+They must be able to:
+- open the app
+- select one or more .mbox files
+- wait for indexing
+- search by keywords
+- open a result
+- extract the attachment quickly
+The app must minimise thinking and feel reliable and familiar.
+--------------------------------------------------
+ENVIRONMENT
+--------------------------------------------------
+- Nix environment
+- Bun available for install/scripts (bun install, bun run)
+- DO NOT assume Bun runtime inside Electron
+- Use Node-compatible runtime libraries
+--------------------------------------------------
+TECH STACK
+--------------------------------------------------
+- Electron (latest stable)
+- React + TypeScript
+- Tailwind CSS (v4+) + @tailwindcss/vite
+- Vite (renderer)
+- SQLite (FTS5 enabled)
+- better-sqlite3
+- streaming MBOX-RD compliant parser (node-mbox or minimal custom splitter)
+- mailparser (MIME parsing)
+- dompurify (preferred)
+- react-virtuoso (preferred for modern React/TS support) or react-window (for virtualization)
+- sanitize-filename
+- mime-types
+- zustand
+- @electron/rebuild
+--------------------------------------------------
+ARCHITECTURE
+--------------------------------------------------
+Main process:
+- filesystem access
+- SQLite
+- orchestration
+Utility process:
+- ALL mbox parsing + indexing
+- runs isolated for safety
+Renderer:
+- UI only
+Preload:
+- strict IPC bridge only
+Communication:
+- Use MessageChannelMain (preferred) or IPC
+- Must stream progress updates (bytes, messages, ETA)
+- Support cancellation
+--------------------------------------------------
+CRITICAL IMPORT DESIGN
+--------------------------------------------------
+Importer MUST:
+- run in Electron utilityProcess (NOT worker_threads)
+- stream the mbox file
+- never load full file into memory
+- handle 30GB+ safely
+--------------------------------------------------
+ATTACHMENT STRATEGY (HYBRID)
+--------------------------------------------------
+DO NOT extract all attachments during import.
+Instead:
+- store message byte offsets (start/end in mbox)
+- store attachment metadata (filename, content-type)
+CRITICAL:
+During import, also capture and store the exact start/end byte offsets of each individual attachment part inside the original mbox.
+Use node-mbox + mailparser streaming events to track these offsets.
+On demand:
+- when user opens message or clicks export
+  → seek directly to attachment byte range
+  → extract only that segment
+DO NOT re-parse full message during export.
+Goal:
+- prevent disk explosion
+- ensure fast extraction
+- constant-time attachment access
+--------------------------------------------------
+MBOX PARSING (STRICT)
+--------------------------------------------------
+Use MBOX-RD compliance:
+- correctly handle escaped lines (>From )
+- DO NOT split naïvely on "From "
+- support malformed messages
+- skip bad messages and continue
+- log errors without crashing
+- never load entire file
+If node-mbox is unavailable or outdated, implement a minimal streaming MBOXRD splitter that correctly handles escaped “From ” lines (standard practice for large archives).
+--------------------------------------------------
+DATABASE DESIGN (SQLite + FTS5)
+--------------------------------------------------
+Each archive gets its own SQLite DB.
+Example structure:
+archives:
+- id
+- name
+- source_path
+- db_path
+- imported_at
+messages:
+- id
+- archive_id
+- subject
+- from_text
+- to_text
+- date
+- mbox_offset_start
+- mbox_offset_end
+- snippet
+attachments:
+- id
+- message_id
+- filename
+- content_type
+- offset_start
+- offset_end
+fts_messages:
+- subject
+- attachment_names
+- sender
+- recipients
+- body
+--------------------------------------------------
+SEARCH
+--------------------------------------------------
+Use FTS5 with BM25 ranking:
+Weights:
+- subject: highest
+- attachment filename: high
+- sender: medium
+- body: low
+Search must:
+- be fast
+- return ranked results
+- include snippet
+Filters:
+- has attachments
+- sender
+- date range
+- archive
+--------------------------------------------------
+UI REQUIREMENTS
+--------------------------------------------------
+Three-pane layout:
+LEFT:
+- archives
+- import
+- filters
+- progress
+MIDDLE:
+- search
+- virtualized message list
+- must handle 100k+ rows smoothly
+RIGHT:
+- message preview
+- headers
+- sanitized HTML
+- plain text fallback
+- attachments with export buttons
+Must:
+- be calm and minimal
+- show READ-ONLY clearly
+- show progress clearly
+- handle empty/error states
+--------------------------------------------------
+EXPORT
+--------------------------------------------------
+- export single attachment
+- export all attachments from message
+- export message as .eml
+- reveal in OS
+Must:
+- sanitize filenames
+- prevent path traversal
+- be OS-safe
+--------------------------------------------------
+SECURITY
+--------------------------------------------------
+- contextIsolation: true
+- no nodeIntegration
+- strict IPC only
+Renderer CSP:
+- block all external requests
+- block remote images
+- no script execution
+Sanitize all HTML with dompurify.
+--------------------------------------------------
+PERFORMANCE
+--------------------------------------------------
+- streaming import only
+- bounded memory usage
+- responsive UI
+- background indexing
+- fast search
+--------------------------------------------------
+NATIVE MODULE BUILD
+--------------------------------------------------
+Use @electron/rebuild
+Add to package.json scripts:
+"postinstall": "electron-rebuild -f -w better-sqlite3"
+--------------------------------------------------
+TESTING
+--------------------------------------------------
+Test:
+- MBOX parsing (escaped From)
+- malformed messages
+- DB + FTS
+- attachment extraction via offsets
+- filename sanitization
+--------------------------------------------------
+ACCEPTANCE CRITERIA
+--------------------------------------------------
+1. App runs locally
+2. Can open large .mbox
+3. Indexing completes without crash
+4. Search works and is fast
+5. UI stays responsive
+6. Messages open correctly
+7. Attachments extract instantly
+8. No disk bloat
+9. Source file untouched
+--------------------------------------------------
+EXECUTION
+--------------------------------------------------
+- initialise project (electron-vite recommended)
+- build full working app (not just scaffold)
+At completion output:
+- what was built
+- how to run
+- limitations
+- tradeoffs
+Focus on correctness, reliability, and real-world scale.
+Start now.
