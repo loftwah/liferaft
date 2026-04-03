@@ -20,6 +20,10 @@ import { detectAttachmentSearchIntent } from '@shared/search'
 import { useLiferaftStore } from './store'
 
 type PreviewMode = 'formatted' | 'plain'
+const liferaftIconUrl = new URL(
+  './assets/icons/liferaft-icon-128.png',
+  import.meta.url
+).href
 
 export function App() {
   const {
@@ -217,12 +221,20 @@ export function App() {
     <div className="app-frame">
       <aside className="scope-rail panel">
         <div className="rail-header">
-          <div>
-            <div className="eyebrow">Liferaft</div>
-            <h1 className="app-title">Attachment recovery</h1>
-            <p className="rail-subtitle">
-              Local, read-only indexing for .mbox archives.
-            </p>
+          <div className="brand-block">
+            <img
+              alt=""
+              aria-hidden="true"
+              className="brand-mark"
+              src={liferaftIconUrl}
+            />
+            <div className="brand-copy">
+              <div className="eyebrow">Liferaft</div>
+              <h1 className="app-title">Attachment recovery</h1>
+              <p className="rail-subtitle">
+                Local, read-only indexing for .mbox archives.
+              </p>
+            </div>
           </div>
           <button className="primary-button" onClick={() => void beginImport()}>
             Import .mbox

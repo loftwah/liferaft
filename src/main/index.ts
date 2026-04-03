@@ -1,13 +1,15 @@
 import path from 'node:path'
 import type { BrowserWindow as ElectronBrowserWindow } from 'electron'
+import appIconPath from '../renderer/assets/icons/liferaft-icon-512.png?asset'
 import { CatalogStore } from './catalog'
 import { ArchiveDatabasePool } from './archive-db'
-import { app, BrowserWindow } from './electron-runtime'
+import { app, BrowserWindow, nativeImage } from './electron-runtime'
 import { registerIpc } from './ipc'
 
 let mainWindow: ElectronBrowserWindow | null = null
 let disposeIpc: (() => void) | null = null
 const databasePool = new ArchiveDatabasePool()
+const appIcon = nativeImage.createFromPath(appIconPath)
 
 app.setPath('userData', path.join(app.getPath('appData'), 'liferaft'))
 
@@ -19,6 +21,7 @@ function createWindow(): ElectronBrowserWindow {
     minHeight: 760,
     backgroundColor: '#d7ddd8',
     title: 'Liferaft',
+    icon: appIcon.isEmpty() ? undefined : appIcon,
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.cjs'),
       contextIsolation: true,
@@ -52,6 +55,11 @@ function createWindow(): ElectronBrowserWindow {
 
 app.whenReady().then(() => {
   const catalog = new CatalogStore()
+
+  if (process.platform === 'darwin' && !appIcon.isEmpty()) {
+    app.dock?.setIcon(appIcon)
+  }
+
   mainWindow = createWindow()
   disposeIpc = registerIpc(mainWindow, catalog, databasePool)
 

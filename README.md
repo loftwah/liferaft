@@ -1,5 +1,7 @@
 # Liferaft
 
+![Liferaft overview](./og-image.jpg)
+
 Liferaft is a local, read-only Electron desktop app for opening large `.mbox` archives, indexing them locally, searching them quickly, previewing messages in a familiar three-pane layout, and exporting attachments or selected messages for recovery work.
 
 It is intentionally not an email client. There is no account login, sync, compose, send, reply, or remote access path.
