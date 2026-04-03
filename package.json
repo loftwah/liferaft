@@ -1,6 +1,6 @@
 {
   "name": "liferaft",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "productName": "Liferaft",
   "description": "Local, read-only desktop app for indexing and recovering messages and attachments from large MBOX archives.",
@@ -91,7 +91,7 @@
     "mac": {
       "category": "public.app-category.productivity",
       "icon": "build/icon.png",
-      "identity": null,
+      "identity": "-",
       "target": [
         "dmg",
         "zip"
