@@ -107,6 +107,13 @@ The current GitHub Release artifacts are unsigned. That is normal for an early-s
 
 macOS:
 
+- Liferaft publishes Apple Silicon macOS builds today.
+- The easiest install path is the GitHub-hosted install script, which downloads the latest mac release, copies it into `/Applications`, and clears the quarantine flag:
+
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/loftwah/liferaft/main/scripts/install-macos.sh)"
+```
+
 - macOS may block the app on first launch because the build is not notarized.
 - If Finder says Liferaft cannot be opened, right-click the app and choose `Open`.
 - If macOS still blocks it, open `System Settings` > `Privacy & Security` and allow the app to run.
