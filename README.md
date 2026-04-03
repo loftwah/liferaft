@@ -94,6 +94,25 @@ Notes:
 - The workflow publishes unsigned builds. macOS Gatekeeper and Windows SmartScreen may warn until code signing is added.
 - Release artifacts are produced with `electron-builder` and uploaded from `.github/workflows/release.yml`.
 
+## Opening unsigned builds
+
+The current GitHub Release artifacts are unsigned. That is normal for an early-stage desktop utility, but users may need to confirm the first launch manually.
+
+macOS:
+
+- If Finder says Liferaft cannot be opened, right-click the app and choose `Open`.
+- If macOS still blocks it, open `System Settings` > `Privacy & Security` and allow the app to run.
+
+Windows:
+
+- If SmartScreen warns before launch, click `More info` and then `Run anyway`.
+
+Linux:
+
+- Linux builds typically do not require an additional trust step beyond making the download executable when needed.
+
+Code signing is worth adding later if Liferaft is distributed broadly or non-technical users are expected to install it often. For now, most developers would ship unsigned builds and document the warning clearly.
+
 ## Architecture
 
 - `src/main`
