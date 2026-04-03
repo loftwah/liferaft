@@ -4,12 +4,61 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to create from the selected branch or commit, for example v0.1.0
+        required: true
+        type: string
 
 permissions:
   contents: write
 
 jobs:
+  create-tag:
+    if: github.event_name == 'workflow_dispatch'
+    name: Create release tag
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate requested tag
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          case "$RELEASE_TAG" in
+            v*) ;;
+            *)
+              echo "Release tag must start with v, for example v0.1.0"
+              exit 1
+              ;;
+          esac
+
+          if git rev-parse "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Tag $RELEASE_TAG already exists locally"
+            exit 1
+          fi
+
+          if git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Tag $RELEASE_TAG already exists on origin"
+            exit 1
+          fi
+
+      - name: Create and push tag
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "$RELEASE_TAG" "$GITHUB_SHA"
+          git push origin "refs/tags/$RELEASE_TAG"
+
   release:
+    if: github.event_name == 'push'
     name: Build ${{ matrix.platform.name }}
     runs-on: ${{ matrix.platform.os }}
     strategy:
@@ -29,6 +78,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2

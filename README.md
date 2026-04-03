@@ -75,11 +75,17 @@ bun run typecheck
 
 This repository is configured to publish downloadable desktop builds through GitHub Releases.
 
+Tag format:
+
+- Release tags must start with `v` and use semantic versioning: `vMAJOR.MINOR.PATCH`
+- Examples: `v0.1.0`, `v0.2.3`, `v1.0.0`
+- The GitHub Actions release workflow only triggers for tags matching `v*`
+
 Release flow:
 
 1. Update `package.json` to the version you want to ship.
 2. Commit the release changes.
-3. Push a matching git tag such as `v0.2.0`.
+3. Trigger the release in one of two ways: push a matching git tag such as `v0.2.0`, or run the `Release` workflow manually from the GitHub Actions tab and enter the tag you want created.
 4. GitHub Actions will build macOS, Windows, and Linux packages and attach them to the GitHub release for that tag.
 
 Example:
@@ -93,6 +99,7 @@ Notes:
 
 - The workflow publishes unsigned builds. macOS Gatekeeper and Windows SmartScreen may warn until code signing is added.
 - Release artifacts are produced with `electron-builder` and uploaded from `.github/workflows/release.yml`.
+- Manual runs of the `Release` workflow create the requested `v*` tag on the selected branch or commit, then the normal tag-based release build runs automatically.
 
 ## Opening unsigned builds
 
