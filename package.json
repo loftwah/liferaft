@@ -16,7 +16,7 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "dist": "bun run build && electron-builder --publish never",
-    "release": "bun run build && electron-builder --publish always",
+    "release": "bun run check && bun run build && electron-builder --publish always",
     "start": "electron-vite preview --skipBuild",
     "start:built": "electron-vite preview",
     "preview": "electron-vite preview",
@@ -24,6 +24,7 @@
     "format:check": "prettier --check .",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
+    "check": "bun run format:check && bun test && bun run typecheck",
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
