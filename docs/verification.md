@@ -8,7 +8,7 @@ Verified 12 November 2026 in Melbourne. The native work starts at Liferaft
 source revision associated with the installed candidate.
 
 - The local Apple silicon DMG is `Liferaft-0.3.0-mac-arm64.dmg`. Its SHA-256 is
-  `f9d53c052570a5933b4e0fbab51dcefecf63f211f374afdffafc11d03f619574`.
+  `6c90f2dec35ab87de63ff816454698b6178af45b784f186059c8109d78b806d8`.
   Tested on macOS 26.6.2 (25G83) arm64. The package contains Node 24.22.1 and
   the arm64 SQLite binding. Bundle signature verification and the packaged
   FTS5 probe passed.
