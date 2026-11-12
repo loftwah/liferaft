@@ -1,6 +1,29 @@
 # Liferaft verification
 
-## 0.3.0 native Rune candidate
+## 0.3.0 public Rune release
+
+13 November 2026, Melbourne. The public DMG targets Apple silicon and declares
+macOS 13.5 as its minimum. Installed verification ran on macOS 26.6.2 arm64.
+The app’s Rune selection marker uses shared-element spring motion and the
+archive row shows animated indexing progress. The Rune runtime test checks
+selection movement across virtualised rows and the Reduce Motion fallback.
+
+The release candidate was mounted and installed in an isolated location.
+Search, changing results, selection in the native accessibility tree, PDF and
+original-message recovery, and save-dialog focus restoration were exercised
+with fictional mail. The final package recovered the expected PDF and left
+the source archive unchanged. The engine files matched the previous candidate
+byte-for-byte. Formatting, TypeScript, 36 Bun tests, 11 Node integration tests
+and the Rune motion test passed.
+
+The SHA-256 of the DMG is
+`1a09c7b016fdb57b4227754c81625d5e515110f3cf08af2c2d7fb273cc5f27d6`.
+The public build is ad-hoc signed and unnotarised. macOS may require the user
+to approve it manually. The evidence used an isolated local installation.
+See the [v0.3.0 release](https://github.com/loftwah/liferaft/releases/tag/v0.3.0)
+and [download page](https://liferaft.loftwah.com/#download).
+
+## 0.3.0 native Rune candidate (historical)
 
 Verified 12 November 2026 in Melbourne. The native work starts at Liferaft
 `7691f423dd3ea1f050cbec9a12552642ce6db2ae` (#11) and pins Rune
@@ -39,8 +62,8 @@ source revision associated with the installed candidate.
   An independent review exercised a real in-progress export and verified
   that pipe EOF aborted publication and removed the partial file.
 - macOS Gatekeeper rejected the ad-hoc candidate for distribution. The host
-  has Apple Development identities. A Developer ID Application identity and
-  authorised notarisation profile are required for the public Rune release.
+  had Apple Development identities. A Developer ID Application identity and
+  notarisation would let a distribution build pass Gatekeeper’s usual check.
   Rune builds for Windows, Linux, Intel macOS and older macOS versions remain
   unverified. Spoken VoiceOver output remains unverified.
 

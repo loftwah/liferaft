@@ -66,14 +66,10 @@
             "url": "https://liferaft.loftwah.com/",
             "description": "Search local MBOX archives and recover messages and attachments.",
             "applicationCategory": "UtilitiesApplication",
-            "softwareVersion": "0.1.2",
-            "operatingSystem": "macOS (Apple silicon), Windows (x64), Linux (x86-64)",
-            "softwareHelp": "https://github.com/loftwah/liferaft/tree/v0.1.2#readme",
-            "downloadUrl": [
-              "https://github.com/loftwah/liferaft/releases/download/v0.1.2/Liferaft-0.1.2-mac-arm64.dmg",
-              "https://github.com/loftwah/liferaft/releases/download/v0.1.2/Liferaft-0.1.2-win-x64.exe",
-              "https://github.com/loftwah/liferaft/releases/download/v0.1.2/Liferaft-0.1.2-linux-x86_64.AppImage"
-            ]
+            "softwareVersion": "0.3.0",
+            "operatingSystem": "macOS 13.5 or later (Apple silicon)",
+            "softwareHelp": "https://github.com/loftwah/liferaft/tree/v0.3.0#readme",
+            "downloadUrl": "https://github.com/loftwah/liferaft/releases/download/v0.3.0/Liferaft-0.3.0-mac-arm64.dmg"
           }
         ]
       }
@@ -101,15 +97,15 @@
             attachments. Check the original message, then save the file you came
             for.
           </p>
-          <a class="button" href="#download">See downloads</a>
+          <a class="button" href="#download">Get Liferaft for Mac</a>
         </div>
         <figure class="app-figure">
           <a
-            href="/media/rune-recovery-original.webp"
+            href="/media/rune-recovery-original.webp?v=0.3.0"
             aria-label="View the full-size screenshot of the invoice search and message preview"
           >
             <img
-              src="/media/rune-recovery.webp"
+              src="/media/rune-recovery.webp?v=0.3.0"
               width="1560"
               height="979"
               alt="Liferaft’s archive list, search for invoice.pdf and original message preview with attachment recovery controls"
@@ -163,38 +159,46 @@
         <div>
           <h2>Get Liferaft.</h2>
           <p>
-            The published desktop release is v0.1.2, the earlier Electron
-            edition. Its installers are unsigned. The Rune edition has been
-            packaged and tested locally on Apple silicon. The public Rune
-            download is pending macOS distribution signing.
+            Rune v0.3.0 is available for Apple silicon Macs running macOS 13.5
+            or later. The DMG includes the runtime and SQLite.
           </p>
           <a
             class="button"
-            href="https://github.com/loftwah/liferaft/releases/tag/v0.1.2"
-            >View the v0.1.2 release</a
+            href="https://github.com/loftwah/liferaft/releases/download/v0.3.0/Liferaft-0.3.0-mac-arm64.dmg"
+            >Download Liferaft v0.3.0</a
           >
         </div>
-        <ul class="downloads">
-          <li>
-            <a
-              href="https://github.com/loftwah/liferaft/releases/download/v0.1.2/Liferaft-0.1.2-mac-arm64.dmg"
-              ><strong>macOS</strong
-              ><span>Apple silicon · v0.1.2 · DMG</span></a
-            >
-          </li>
-          <li>
-            <a
-              href="https://github.com/loftwah/liferaft/releases/download/v0.1.2/Liferaft-0.1.2-win-x64.exe"
-              ><strong>Windows</strong><span>x64 · v0.1.2 · EXE</span></a
-            >
-          </li>
-          <li>
-            <a
-              href="https://github.com/loftwah/liferaft/releases/download/v0.1.2/Liferaft-0.1.2-linux-x86_64.AppImage"
-              ><strong>Linux</strong><span>x86-64 · v0.1.2 · AppImage</span></a
-            >
-          </li>
-        </ul>
+        <div>
+          <h3>First launch on macOS</h3>
+          <p>
+            This build is unnotarised. Open the DMG, drag Liferaft into
+            Applications and try opening it. If macOS blocks it and you trust
+            the download, follow Apple’s
+            <a href="https://support.apple.com/en-us/102445"
+              >Open Anyway instructions</a
+            >.
+          </p>
+          <ul class="downloads">
+            <li>
+              <a href="https://github.com/loftwah/liferaft/releases/tag/v0.3.0"
+                ><strong>Rune release notes</strong
+                ><span>v0.3.0 · Apple silicon</span></a
+              >
+            </li>
+            <li>
+              <a
+                href="https://github.com/loftwah/liferaft/releases/download/v0.3.0/Liferaft-0.3.0-mac-arm64.dmg.sha256"
+                ><strong>Download checksum</strong><span>SHA-256</span></a
+              >
+            </li>
+            <li>
+              <a href="https://github.com/loftwah/liferaft/releases/tag/v0.1.2"
+                ><strong>Earlier Electron release</strong
+                ><span>v0.1.2 · macOS, Windows and Linux</span></a
+              >
+            </li>
+          </ul>
+        </div>
       </section>
 
       <section class="help">
@@ -203,7 +207,7 @@
             <h2>Before you start.</h2>
             <ul class="resources">
               <li>
-                <a href="https://github.com/loftwah/liferaft/tree/v0.1.2#readme"
+                <a href="https://github.com/loftwah/liferaft/tree/v0.3.0#readme"
                   >v0.1.2 setup and recovery</a
                 >
               </li>
