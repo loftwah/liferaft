@@ -1,5 +1,33 @@
 # Liferaft verification
 
+## 0.3.1 attachment search and archive browsing
+
+13 November 2026, Melbourne. Tested on macOS 26.6.2 arm64. The installer
+reuses existing Rune indexes. No schema change or reindex is required.
+
+- A synthetic message containing a search term only in its body no longer
+  matches a filename filter. Tests also cover a message with two attachments
+  that satisfy different halves of a combined name/type query, Unicode
+  filenames, and applying attachment filters before the result cap.
+- Browsing without a text term now uses the existing SQLite date index.
+  An in-memory probe with 250,000 fictional rows returned the same 501 rows
+  in 9.72 ms before and 0.11 ms after (median of 11 warm runs each). The
+  query plan changed from scanning and sorting the table to scanning the
+  existing date index. This is query timing, not whole-app or import timing.
+- On the isolated installation, the Rune window displayed zero matches for
+  a nonmatching filename and one match for the quoted invoice filename and
+  extension. The result opened the message preview and showed its recovery
+  control. The installed private engine imported the fixture and recovered
+  the exact PDF and original .eml bytes, with the source MBOX unchanged.
+  The installed MCP entry point passed the wire checks for exact search,
+  extraction, scope and revocation.
+- Formatting, TypeScript, 37 Bun tests, 11 Node integration tests and the
+  Rune motion test passed. The Apple silicon bundle is ad-hoc signed and
+  unnotarised. Other platforms were not qualified for this update.
+
+The DMG SHA-256 is
+`d8a006860b65cb0667c1bcabf2966eebc24a4d7eaca9bbcaa8009fd3b01eb97d`.
+
 ## 0.3.0 public Rune release
 
 13 November 2026, Melbourne. The public DMG targets Apple silicon and declares
