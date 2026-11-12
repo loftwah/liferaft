@@ -193,6 +193,9 @@ figcaption {
 .section-grid h2 + p {
   margin-block: 1rem 1.2rem;
 }
+#download h3 + p {
+  margin-block: 0.45rem 1rem;
+}
 .steps,
 .downloads,
 .resources {
