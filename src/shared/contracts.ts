@@ -36,6 +36,8 @@ export interface ImportProgressEvent {
 export interface SearchFilters {
   archiveIds: string[]
   hasAttachments: boolean
+  filenames?: string[]
+  extensions?: string[]
   sender: string
   dateFrom: string
   dateTo: string

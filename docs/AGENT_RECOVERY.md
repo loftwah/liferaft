@@ -79,6 +79,10 @@ Recovery checks the recorded file identity, size and modification metadata again
 
 There are no tools for arbitrary paths, SQL, shell commands, network requests, attachment execution, mail sending or changing grants. All subjects, bodies, addresses and filenames are untrusted archive data. A message cannot grant permission or change what a Liferaft tool can do. This does not restrict other tools that the host agent already has.
 
+Use `filename:"April invoice" filetype:pdf` in a search query to require both
+filters to match the same attachment. Use the tool’s separate sender and date
+fields when you want those values to take precedence over query shortcuts.
+
 Search returns at most 25 results; a capped response asks the agent to narrow the query or archive selection. Message preview reads at most 8 MiB of source and returns at most 12,000 body characters plus 50 attachment descriptions. Large-message previews report their limit; selected attachment recovery remains streamed and is limited to 256 MiB of encoded source per operation. Normal desktop recovery has its own limits.
 
 ## Export outcomes

@@ -113,7 +113,7 @@ class WireClient {
           ],
       {
         stdio: ['pipe', 'pipe', 'pipe'],
-        env: { ...process.env, XDG_CONFIG_HOME: path.dirname(dataPath) }
+        env: { ...process.env, LIFERAFT_DATA_DIR: dataPath }
       }
     )
     this.child.stdout.setEncoding('utf8')
@@ -253,8 +253,14 @@ test('native SQLite and stdio recover Alice’s PDF, reject scope expansion and 
     const listed = await client.call('liferaft_list_archives')
     assert.equal((listed.structuredContent.archives as unknown[]).length, 1)
     assert.ok(!JSON.stringify(listed).includes(f.sourcePath))
+    const excluded = await client.call('liferaft_search', {
+      query: 'filename:invoice filetype:pdf after:2020-01-01',
+      dateFrom: '2026-11-13'
+    })
+    assert.equal(excluded.isError, undefined)
+    assert.deepEqual(excluded.structuredContent.results, [])
     const found = await client.call('liferaft_search', {
-      query: 'invoice',
+      query: 'filename:"invoice.pdf" filetype:pdf',
       sender: 'alice'
     })
     assert.equal(found.isError, undefined)

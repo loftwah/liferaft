@@ -1,6 +1,7 @@
 import path from 'node:path'
 import { createHash, createHmac, randomBytes } from 'node:crypto'
 import type { ArchiveSummary, SearchResultRow } from '@shared/contracts'
+import { parseSearchInput } from '@shared/search'
 import { buildSafeFilename } from '@shared/filenames'
 import {
   captureSourceSnapshot,
@@ -156,18 +157,21 @@ export class AgentRecoveryService {
       contexts.set(id, await this.context(id, grant))
     }
 
+    const parsed = parseSearchInput(input.query)
+    const hasAttachments = input.hasAttachments || parsed.filters.hasAttachments
     let rows: SearchResultRow[]
     try {
       rows = this.services.search.search({
-        text: input.query,
+        text: parsed.text,
         filters: {
+          ...parsed.filters,
           archiveIds: [...contexts.keys()],
-          sender: input.sender ?? '',
-          hasAttachments: input.hasAttachments ?? false,
-          dateFrom: input.dateFrom ?? '',
-          dateTo: input.dateTo ?? ''
+          sender: input.sender ?? parsed.filters.sender ?? '',
+          hasAttachments: Boolean(hasAttachments),
+          dateFrom: input.dateFrom ?? parsed.filters.dateFrom ?? '',
+          dateTo: input.dateTo ?? parsed.filters.dateTo ?? ''
         },
-        preferAttachments: input.hasAttachments === true,
+        preferAttachments: Boolean(hasAttachments),
         limit: limit + 1
       })
     } catch {

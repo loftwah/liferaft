@@ -183,7 +183,8 @@ describe('database and export safety', () => {
       'from:alice@example.com has:attachment after:2025-04-01 before:2025-04-10 filetype:pdf budget'
     )
 
-    expect(parsed.text).toBe('pdf budget')
+    expect(parsed.text).toBe('budget')
+    expect(parsed.filters.extensions).toEqual(['pdf'])
     expect(parsed.filters.sender).toBe('alice@example.com')
     expect(parsed.filters.hasAttachments).toBe(true)
     expect(parsed.filters.dateFrom).toBe('2025-04-01')
