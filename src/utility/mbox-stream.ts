@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { MailParser } from 'mailparser'
+import { passiveMessageText } from '@shared/passive-text'
 import { pipeline } from 'node:stream/promises'
 import { Readable } from 'node:stream'
 import {
@@ -358,6 +359,7 @@ async function parseMessage(
   let ccText = ''
   let date: string | null = null
   let text = ''
+  let html: string | null = null
 
   parser.on('headers', (headers) => {
     subject = stringifyHeader(headers.get('subject'))
@@ -371,6 +373,7 @@ async function parseMessage(
   parser.on('data', (data) => {
     if (data.type === 'text') {
       text = data.text ?? ''
+      html = data.html ?? null
     } else if (data.type === 'attachment') {
       data.content.resume()
       data.release()
@@ -386,10 +389,10 @@ async function parseMessage(
     toText ||= fallback.toText
     ccText ||= fallback.ccText
     date ||= fallback.date
-    text ||= fallback.bodyText
+    if (!html) text ||= fallback.bodyText
   }
 
-  const cleanText = compactWhitespace(text)
+  const cleanText = compactWhitespace(passiveMessageText(text, html))
   return {
     message: {
       subject,

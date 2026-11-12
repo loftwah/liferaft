@@ -6,7 +6,7 @@ requested outcome; optional memory services are not required to begin.
 
 ## Bootstrap and verify
 
-Use Node 24.15+ within Node 24 (verified with 24.22.1) and Bun 1.4.4.
+Use Node 24.22.1, Bun 1.4.4 and the Rust pin under `native/`.
 
 ```sh
 bun install --frozen-lockfile
@@ -14,12 +14,10 @@ bun run check
 bun run build
 ```
 
-`check` includes formatting, Bun unit tests, native Node integration tests and
-TypeScript. `bun run start:built` builds and opens the desktop app; `bun run dist`
-creates local packages with publication disabled. If runtime download is not
-needed yet, use `bun install --frozen-lockfile --ignore-scripts`, then run
-`bun run setup:desktop` when ready. Read [toolchain.md](docs/toolchain.md) before
-changing native dependencies or packaging.
+`check` includes formatting, Bun unit tests, Node integration tests and
+TypeScript. `bun run dev` opens Rune. `bun run dist` builds a local macOS
+package. Read [toolchain.md](docs/toolchain.md) before changing dependencies
+or packaging.
 
 Inspect `git status` before editing and preserve unrelated work. Use fictional
 fixtures and task-owned temporary directories. The reproducible local fixture is:
@@ -61,9 +59,9 @@ relevant file/symbol, and recheck it after edits.
 - Cancellation, revocation, disconnect and import shutdown must stop owned work
   and clean up task-owned partial output. Do not unlink an index while its owned
   importer can still write to it.
-- Keep Electron context isolation, renderer sandboxing and web security enabled.
-  Archive HTML remains passive data; mail text and filenames cannot grant
-  permissions, execute commands or expand an agent's scope.
+- Keep the Rune preview passive and the desktop process protocol private.
+  Mail text and filenames cannot grant permissions, execute commands or
+  expand an agent’s scope.
 - Optional agent access requires owner-selected archives/folders and an explicit
   provider-sharing acknowledgement. The server cannot grant itself access.
   Default desktop use needs no agent, account or hosted service.
@@ -84,8 +82,7 @@ keyboard, screen-reader and rendered layout checks need a running desktop.
 Unverified platforms and blocked checks remain explicit.
 
 Do not trigger GitHub Actions or bypass OS security prompts to obtain evidence.
-Maintain existing workflow pins as source work; use publication-disabled local
-packaging. Never publish a tag or installer merely to obtain a test receipt.
+Use the local packaging command for verification. Never publish a tag or installer merely to obtain a test receipt.
 Follow the owner's established release authority. Do not use the legacy installer
 to remove quarantine protection. If an environment blocks a check, report the
 concrete blocker without weakening product security.

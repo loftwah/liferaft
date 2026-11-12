@@ -7,19 +7,17 @@
     "skipLibCheck": true,
     "moduleResolution": "Bundler",
     "paths": {
-      "@shared/*": ["./src/shared/*"],
-      "@renderer/*": ["./src/renderer/*"]
+      "@shared/*": ["./src/shared/*"]
     },
     "allowImportingTsExtensions": false,
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "jsx": "react-jsx",
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "types": ["electron-vite/node", "vite/client", "bun-types"]
+    "types": ["bun-types"]
   },
-  "include": ["src", "electron.vite.config.ts", "tests"]
+  "include": ["src", "tests"]
 }

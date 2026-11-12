@@ -20,3 +20,6 @@ takeout/
 !.env.example
 output/runs/
 !tests/fixtures/*.mbox
+
+native/target/
+.playwright-cli/

@@ -87,7 +87,7 @@ export interface MessagePreview {
   toText: string
   ccText: string
   date: string | null
-  html: string | null
+  hasHtml: boolean
   text: string
   attachments: AttachmentSummary[]
 }
@@ -97,50 +97,4 @@ export interface ExportResult {
   path?: string
   paths?: string[]
   error?: string
-}
-
-export interface AgentAccessStatus {
-  enabled: boolean
-  archiveIds: string[]
-  exportDirectories: Array<{ id: string; name: string; path: string }>
-  command: string
-  args: string[]
-}
-
-export interface LiferaftApi {
-  getAgentAccess: () => Promise<AgentAccessStatus>
-  enableAgentAccess: (archiveIds: string[]) => Promise<AgentAccessStatus>
-  revokeAgentAccess: () => Promise<AgentAccessStatus>
-  selectMboxFiles: () => Promise<string[]>
-  startImport: (paths: string[]) => Promise<ArchiveSummary[]>
-  cancelImport: (archiveId: string) => Promise<void>
-  deleteArchiveIndex: (archiveId: string) => Promise<void>
-  listArchives: () => Promise<ArchiveSummary[]>
-  getStorageInfo: () => Promise<StorageSummary>
-  searchMessages: (query: SearchQuery) => Promise<SearchResultRow[]>
-  loadMessagePreview: (
-    archiveId: string,
-    messageId: number,
-    indexRevision: string
-  ) => Promise<MessagePreview>
-  exportAttachment: (
-    archiveId: string,
-    attachmentId: number,
-    indexRevision: string
-  ) => Promise<ExportResult>
-  exportAllAttachments: (
-    archiveId: string,
-    messageId: number,
-    indexRevision: string
-  ) => Promise<ExportResult>
-  exportMessage: (
-    archiveId: string,
-    messageId: number,
-    indexRevision: string
-  ) => Promise<ExportResult>
-  revealPath: (path: string) => Promise<void>
-  onShutdownPending: (listener: (notice: string | null) => void) => () => void
-  onImportProgress: (
-    listener: (event: ImportProgressEvent) => void
-  ) => () => void
 }

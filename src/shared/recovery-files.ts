@@ -20,8 +20,14 @@ export interface SourceReadOptions {
   signal?: AbortSignal
 }
 
+export type TemporaryTracker = (
+  temporary: string,
+  parent: Pick<fs.Stats, 'dev' | 'ino'>
+) => () => void
+
 export interface ArchiveExportOptions extends SourceReadOptions {
   expectedIndexRevision?: string
+  trackTemporary?: TemporaryTracker
   /** Recheck the caller's grants and index revision immediately before publish. */
   validateBeforeCommit?: () => void | Promise<void>
 }
@@ -166,6 +172,7 @@ export async function writeArchiveRangeAtomically(
   const destination = path.join(directory, path.basename(input.destinationPath))
   const temporary = path.join(directory, `.liferaft-${randomUUID()}.tmp`)
   let temporaryCreated = false
+  let untrack: (() => void) | undefined
 
   try {
     // Avoid doing an expensive extraction when the chosen file already exists.
@@ -178,6 +185,7 @@ export async function writeArchiveRangeAtomically(
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     }
 
+    untrack = input.trackTemporary?.(temporary, parentBefore)
     const output = await fs.promises.open(temporary, 'wx', 0o600)
     temporaryCreated = true
     const outputStream = output.createWriteStream({
@@ -237,7 +245,8 @@ export async function writeArchiveRangeAtomically(
       throw error
     }
   } finally {
-    if (temporaryCreated) await fs.promises.unlink(temporary)
+    if (temporaryCreated) await fs.promises.rm(temporary, { force: true })
+    untrack?.()
   }
 }
 

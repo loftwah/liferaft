@@ -1,6 +1,5 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { createRequire } from 'node:module'
 import type BetterSqlite3 from 'better-sqlite3'
 import { CATALOG_SCHEMA } from '@shared/schema'
 import type {
@@ -41,14 +40,8 @@ export class CatalogStore {
   private readonly baseDir: string
   private readonly archivesDir: string
 
-  constructor(options: { baseDir?: string; readonly?: boolean } = {}) {
-    this.baseDir =
-      options.baseDir ??
-      (
-        createRequire(import.meta.url)(
-          'electron/main'
-        ) as typeof import('electron/main')
-      ).app.getPath('userData')
+  constructor(options: { baseDir: string; readonly?: boolean }) {
+    this.baseDir = options.baseDir
     this.archivesDir = path.join(this.baseDir, 'archives')
     if (!options.readonly) {
       fs.mkdirSync(this.archivesDir, { recursive: true })

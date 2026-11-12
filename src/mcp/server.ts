@@ -7,6 +7,7 @@ import * as z from 'zod/v4'
 import type { ArchiveDatabasePool } from '../main/archive-db'
 import type { CatalogStore } from '../main/catalog'
 import { ExportService } from '../main/exporter'
+import type { TemporaryTracker } from '@shared/recovery-files'
 import { MessagePreviewService } from '../main/message-preview'
 import { SearchService } from '../main/search'
 import { AgentAccessStore } from './access'
@@ -201,6 +202,7 @@ export function startMcpServer(options: {
   pool: ArchiveDatabasePool
   access: AgentAccessStore
   version: string
+  trackTemporary?: TemporaryTracker
   onClose?: () => void
 }): { close: () => Promise<void> } {
   const service = new AgentRecoveryService({
@@ -208,7 +210,11 @@ export function startMcpServer(options: {
     pool: options.pool,
     search: new SearchService(options.catalog, options.pool),
     preview: new MessagePreviewService(options.catalog, options.pool),
-    exporter: new ExportService(options.catalog, options.pool),
+    exporter: new ExportService(
+      options.catalog,
+      options.pool,
+      options.trackTemporary
+    ),
     access: options.access
   })
   const queue = new ToolExecutionQueue()
