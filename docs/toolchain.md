@@ -17,8 +17,9 @@ macOS launch uses the existing Liferaft Application Support directory.
 ## Apple silicon DMG
 
 Run `bun run dist -- /absolute/output/directory` on Apple silicon. It builds
-Rune with a macOS 13 deployment target, verifies the pinned Node distribution’s
-checksum and bundles the application, Node, production JS dependencies and the
+Rune with a macOS 13 deployment target. The bundle minimum is macOS 13.5
+to match the bundled Node binary. The packager verifies the pinned Node distribution’s
+checksum and includes the application, Node, production JS dependencies and the
 arm64 SQLite prebuild. The script verifies the bundle signature and creates an
 FTS5 table with the bundled engine before making the DMG and its SHA-256 file.
 No development runtime is needed to run the installed bundle.
