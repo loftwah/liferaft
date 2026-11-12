@@ -1,6 +1,5 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import type { BrowserWindow as ElectronBrowserWindow } from 'electron'
 import type { ExportResult } from '@shared/contracts'
 import { buildSafeFilename } from '@shared/filenames'
 import { MboxRdUnescapeTransform } from '@shared/mbox'
@@ -8,6 +7,7 @@ import {
   getArchiveRecoveryIdentity,
   sameSource,
   writeArchiveRangeAtomically,
+  type TemporaryTracker,
   type ArchiveExportOptions
 } from '@shared/recovery-files'
 import { decoderForTransferEncoding } from '@shared/transfer-decoder'
@@ -36,49 +36,17 @@ interface MessageExportRow {
 export class ExportService {
   constructor(
     private readonly catalog: CatalogStore,
-    private readonly pool: ArchiveDatabasePool
+    private readonly pool: ArchiveDatabasePool,
+    private readonly trackTemporary?: TemporaryTracker
   ) {}
 
-  async exportAttachment(
-    window: ElectronBrowserWindow,
-    archiveId: string,
-    attachmentId: number,
-    indexRevision: string
-  ): Promise<ExportResult> {
-    const { identity } = this.getRecoveryArchive(archiveId, {
-      expectedIndexRevision: indexRevision
-    })
-    const attachment = this.getAttachment(archiveId, attachmentId)
-    const defaultPath = buildSafeFilename(
-      attachment.filename,
-      'attachment',
-      attachment.content_type ?? undefined
-    )
-
-    const { dialog } = await import('./electron-runtime')
-    const save = await dialog.showSaveDialog(window, {
-      defaultPath
-    })
-
-    if (save.canceled || !save.filePath) {
-      return { cancelled: true }
-    }
-
-    return this.exportAttachmentTo(archiveId, attachmentId, save.filePath, {
-      expectedIndexRevision: identity.indexRevision,
-      expectedSource: identity.sourceSnapshot
-    })
-  }
-
-  async exportAllAttachments(
-    window: ElectronBrowserWindow,
+  async exportAllAttachmentsTo(
     archiveId: string,
     messageId: number,
-    indexRevision: string
+    directory: string,
+    options: ArchiveExportOptions = {}
   ): Promise<ExportResult> {
-    const { db, identity } = this.getRecoveryArchive(archiveId, {
-      expectedIndexRevision: indexRevision
-    })
+    const { db, identity } = this.getRecoveryArchive(archiveId, options)
     const attachments = db
       .prepare(
         `SELECT id, message_id, filename, content_type, content_transfer_encoding, body_offset_start, body_offset_end
@@ -88,20 +56,6 @@ export class ExportService {
       )
       .all(messageId) as AttachmentExportRow[]
 
-    if (attachments.length === 0) {
-      return { cancelled: false, paths: [] }
-    }
-
-    const { dialog } = await import('./electron-runtime')
-    const target = await dialog.showOpenDialog(window, {
-      properties: ['openDirectory', 'createDirectory']
-    })
-
-    if (target.canceled || target.filePaths.length === 0) {
-      return { cancelled: true }
-    }
-
-    const directory = target.filePaths[0]
     const paths: string[] = []
     const usedNames = new Set<string>()
 
@@ -117,6 +71,7 @@ export class ExportService {
       )
       try {
         await this.exportAttachmentTo(archiveId, attachment.id, filePath, {
+          ...options,
           expectedIndexRevision: identity.indexRevision,
           expectedSource: identity.sourceSnapshot
         })
@@ -133,38 +88,6 @@ export class ExportService {
     return { cancelled: false, paths }
   }
 
-  async exportMessage(
-    window: ElectronBrowserWindow,
-    archiveId: string,
-    messageId: number,
-    indexRevision: string
-  ): Promise<ExportResult> {
-    const { identity } = this.getRecoveryArchive(archiveId, {
-      expectedIndexRevision: indexRevision
-    })
-    const message = this.getMessage(archiveId, messageId)
-
-    const { dialog } = await import('./electron-runtime')
-    const save = await dialog.showSaveDialog(window, {
-      defaultPath:
-        buildSafeFilename(message.subject ?? 'message', 'message') + '.eml'
-    })
-
-    if (save.canceled || !save.filePath) {
-      return { cancelled: true }
-    }
-
-    return this.exportMessageTo(archiveId, messageId, save.filePath, {
-      expectedIndexRevision: identity.indexRevision,
-      expectedSource: identity.sourceSnapshot
-    })
-  }
-
-  async revealPath(targetPath: string): Promise<void> {
-    const { shell } = await import('./electron-runtime')
-    shell.showItemInFolder(targetPath)
-  }
-
   async exportAttachmentTo(
     archiveId: string,
     attachmentId: number,
@@ -175,6 +98,7 @@ export class ExportService {
     const attachment = this.getAttachment(archiveId, attachmentId)
     await writeArchiveRangeAtomically({
       ...options,
+      trackTemporary: this.trackTemporary,
       sourcePath: archive.sourcePath,
       offsetStart: attachment.body_offset_start,
       offsetEnd: attachment.body_offset_end,
@@ -205,6 +129,7 @@ export class ExportService {
     const message = this.getMessage(archiveId, messageId)
     await writeArchiveRangeAtomically({
       ...options,
+      trackTemporary: this.trackTemporary,
       sourcePath: archive.sourcePath,
       offsetStart: message.mbox_offset_start,
       offsetEnd: message.mbox_offset_end,

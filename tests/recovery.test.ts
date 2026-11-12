@@ -87,6 +87,53 @@ describe('atomic recovery writes', () => {
     expectNoTemporaryFiles(input.directory)
   })
 
+  test('retains the journal when the destination folder changes before publish', async () => {
+    const input = fixture()
+    const folder = path.join(input.directory, 'output')
+    const moved = path.join(input.directory, 'original-folder')
+    const destinationPath = path.join(folder, 'recovered.eml')
+    fs.mkdirSync(folder)
+    let temporaryName = ''
+    let cleared = false
+    await expect(
+      writeArchiveRangeAtomically({
+        ...input,
+        destinationPath,
+        trackTemporary: (temporary) => {
+          temporaryName = path.basename(temporary)
+          return () => {
+            cleared = true
+          }
+        },
+        validateBeforeCommit: () => {
+          fs.renameSync(folder, moved)
+          fs.mkdirSync(folder)
+          fs.writeFileSync(path.join(folder, temporaryName), 'unrelated file')
+        }
+      })
+    ).rejects.toThrow('export folder changed')
+    expect(fs.existsSync(destinationPath)).toBe(false)
+    expect(fs.readFileSync(path.join(folder, temporaryName), 'utf8')).toBe(
+      'unrelated file'
+    )
+    expect(fs.existsSync(path.join(moved, temporaryName))).toBe(true)
+    expect(cleared).toBe(false)
+  })
+
+  test('reports a successful export even if its cleanup record cannot be removed', async () => {
+    const input = fixture()
+    await writeArchiveRangeAtomically({
+      ...input,
+      trackTemporary: () => () => {
+        throw new Error('journal cleanup failed')
+      }
+    })
+    expect(fs.readFileSync(input.destinationPath)).toEqual(
+      fs.readFileSync(input.sourcePath)
+    )
+    expectNoTemporaryFiles(input.directory)
+  })
+
   test('missing sources and invalid ranges leave no output', async () => {
     const input = fixture()
     for (const offsets of [

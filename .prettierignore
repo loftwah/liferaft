@@ -9,3 +9,5 @@ release
 .agents/skills/impeccable
 .impeccable
 bun.lock
+native/target
+.playwright-cli

@@ -2,6 +2,7 @@ import { pipeline } from 'node:stream/promises'
 import { MailParser } from 'mailparser'
 import type { MessagePreview } from '@shared/contracts'
 import { MboxRdUnescapeTransform } from '@shared/mbox'
+import { passiveMessageText } from '@shared/passive-text'
 import {
   getArchiveRecoveryIdentity,
   sameSource,
@@ -149,6 +150,7 @@ export class MessagePreviewService {
       )
     }
 
+    const plain = passiveMessageText(text, html)
     return {
       id: message.id,
       indexRevision: identity.indexRevision,
@@ -159,8 +161,8 @@ export class MessagePreviewService {
       toText: message.to_text ?? '',
       ccText: message.cc_text ?? '',
       date: message.date,
-      html,
-      text,
+      text: plain,
+      hasHtml: Boolean(html),
       attachments: attachments.map((attachment) => ({
         id: attachment.id,
         messageId: attachment.message_id,

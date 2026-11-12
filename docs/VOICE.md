@@ -48,7 +48,7 @@ the items you choose” already name their actions clearly and are retained.
 Progress retains real processed counts. Cancellation and storage failures report
 the actual outcome instead of turning every interruption into success.
 
-Source strings live in `src/renderer/App.tsx`, `AgentAccessPanel.tsx`, `store.ts`
-and the recovery services. This note records wording decisions; it does not
+Current Rune strings live in `native/src` and the recovery services. The table
+records the wording decisions from the Electron baseline. This note records wording decisions; it does not
 replace checking the running app. Native chooser, keyboard, screen-reader and
 installed desktop acceptance remain recorded in the [verification ledger](verification.md).

@@ -1,4 +1,59 @@
-# 0.2.0 catch-up evidence
+# Liferaft verification
+
+## 0.3.0 native Rune candidate
+
+Verified 12 November 2026 in Melbourne. The native work starts at Liferaft
+`7691f423dd3ea1f050cbec9a12552642ce6db2ae` (#11) and pins Rune
+`ea6ddf8f2c3cd476a3797caad7d77cbe04641d9c`. The delivery PR identifies the
+source revision associated with the installed candidate.
+
+- The local Apple silicon DMG is `Liferaft-0.3.0-mac-arm64.dmg`. Its SHA-256 is
+  `9c7244b453d0886dc5872f8336830c78f14d371a1646f27770ac63a7da4b5343`.
+  Tested on macOS 26.6.2 (25G83) arm64. The package contains Node 24.22.1 and
+  the arm64 SQLite binding. Bundle signature verification and the packaged
+  FTS5 probe passed. The final bundle declares macOS 13.5 to match Node’s
+  load command. Its app code sections and bundled resources matched the
+  installed build used for recovery checks.
+- Mounted the DMG and installed to an isolated location with a separate
+  catalogue. Used the native archive, save and folder dialogs. Recovered the
+  fictional PDF and original `.eml`, opened the one-page PDF in Preview,
+  matched both expected byte sequences, and checked the MBOX hash again.
+  The PDF SHA-256 is
+  `8b052b3da834eb019e1a199a92a41c6880a8ca401dff8cfd628650dad70bf6e2`.
+- Verified Cmd+O, Cmd+F, Tab, Space, restored focus after save, native
+  accessibility names, heading and checkbox roles, and readable previews.
+  A 700-message HTML-only archive produced a capped, scrollable 500-result
+  list and a selectable plain-text preview. Cancelled a 182,000-message
+  fictional import while indexing, checked its temporary index was removed
+  and verified the source checksum.
+- Codex CLI 0.145.0 used the packaged `--mcp` entry point to list the grant,
+  search, read the invoice and recover its PDF. The bytes matched the desktop
+  export. Revoking access in Liferaft returned `access_disabled` to the
+  client. OpenCode v2’s configuration is documented. Its local provider
+  returned a quota error during its model run.
+- Formatting, TypeScript, 36 Bun tests and 11 Node integration tests passed.
+  The private-pipe regression covers a legacy catalogue row, recovery after
+  reindex, HTML-only search and passive preview, stale selections, existing
+  output collisions and exact exports. The crash test force-kills a fixture
+  process and checks cleanup of its owned temporary after restart.
+  An independent review exercised a real in-progress export and verified
+  that pipe EOF aborted publication and removed the partial file.
+- macOS Gatekeeper rejected the ad-hoc candidate for distribution. The host
+  has Apple Development identities. A Developer ID Application identity and
+  authorised notarisation profile are required for the public Rune release.
+  Rune builds for Windows, Linux, Intel macOS and older macOS versions remain
+  unverified. Spoken VoiceOver output remains unverified.
+
+The [landing page](https://liferaft.loftwah.com/) serves the actual fictional
+Rune capture as a local build and offers the published v0.1.2 installers.
+HTTPS, canonical URLs, robots, sitemap, rendered phone and desktop layouts,
+social artwork and the three linked v0.1.2 asset hashes were checked. Google
+Search Console accepted the sitemap for the existing domain property.
+The [Woodhouse project](https://woodhouse.loftwah.com/projects/liferaft/) and
+[share collection](https://woodhouse.loftwah.com/share/liferaft/) use the
+product-site destination and artwork.
+
+## 0.2.0 catch-up evidence (historical)
 
 Checked: 2026/11/12 Australia/Melbourne (AEDT, UTC+11); 2026/11/12 UTC.
 

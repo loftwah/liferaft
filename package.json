@@ -1,11 +1,10 @@
 {
   "name": "liferaft",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "productName": "Liferaft",
   "description": "Local, read-only desktop app for indexing and recovering messages and attachments from large MBOX archives.",
   "type": "module",
-  "main": "out/main/index.js",
   "author": "OpenAI Codex",
   "license": "MIT",
   "repository": {
@@ -13,108 +12,38 @@
     "url": "git+https://github.com/loftwah/liferaft.git"
   },
   "scripts": {
-    "dev": "electron-vite dev",
-    "build": "electron-vite build",
-    "dist": "bun run build && electron-builder --publish never",
-    "release": "bun run check && bun run build && electron-builder --publish always",
-    "start": "electron-vite preview --skipBuild",
-    "start:built": "electron-vite preview",
-    "preview": "electron-vite preview",
+    "build:engine": "bun build src/native/engine.ts --target=node --packages=external --outfile=out/native/engine.mjs",
+    "build": "bun run build:engine && cd native && cargo build --locked",
+    "dev": "bun run build && native/target/debug/liferaft",
+    "dist": "bash scripts/package-macos.sh",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "bun test tests/*.test.ts",
+    "test:integration": "bun run build:engine && node --import tsx --test tests/integration/*.test.ts",
     "typecheck": "tsc --noEmit",
-    "check": "bun run format:check && bun run test && bun run test:integration && bun run typecheck",
-    "postinstall": "install-electron",
-    "test:integration": "node --import tsx --test tests/integration/*.test.ts",
-    "setup:desktop": "install-electron"
+    "check": "bun run format:check && bun run test && bun run test:integration && bun run typecheck"
   },
   "dependencies": {
     "@modelcontextprotocol/server": "2.4.0",
     "better-sqlite3": "13.1.1",
-    "dompurify": "3.4.17",
+    "html-to-text": "10.0.1",
     "mailparser": "3.14.3",
     "mime-types": "3.0.2",
-    "react": "19.3.1",
-    "react-dom": "19.3.1",
-    "react-virtuoso": "4.18.21",
     "sanitize-filename": "1.6.5",
-    "zod": "4.6.7",
-    "zustand": "5.1.0"
+    "zod": "4.6.7"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "4.3.5",
     "@types/better-sqlite3": "9.6.0",
-    "@types/jsdom": "30.0.0",
     "@types/mime-types": "3.0.1",
-    "@types/react": "19.3.0",
-    "@types/react-dom": "19.3.0",
-    "@vitejs/plugin-react": "6.3.0",
     "bun-types": "1.4.4",
-    "electron": "45.3.1",
-    "electron-builder": "26.18.0",
-    "electron-vite": "6.0.0",
-    "jsdom": "31.0.0",
     "prettier": "3.10.1",
     "tsx": "4.23.15",
-    "typescript": "7.0.2",
-    "vite": "8.3.8"
-  },
-  "build": {
-    "appId": "com.loftwah.liferaft",
-    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
-    "asar": true,
-    "directories": {
-      "output": "release",
-      "buildResources": "build"
-    },
-    "files": [
-      "out/**",
-      "package.json",
-      "LICENSE"
-    ],
-    "publish": [
-      {
-        "provider": "github",
-        "owner": "loftwah",
-        "repo": "liferaft",
-        "releaseType": "release",
-        "publishAutoUpdate": false
-      }
-    ],
-    "mac": {
-      "category": "public.app-category.productivity",
-      "icon": "build/icon.png",
-      "identity": "-",
-      "target": [
-        "dmg",
-        "zip"
-      ],
-      "minimumSystemVersion": "13.0.0"
-    },
-    "win": {
-      "icon": "build/icon.png",
-      "target": [
-        "nsis",
-        "zip"
-      ]
-    },
-    "linux": {
-      "category": "Utility",
-      "icon": "build/icon.png",
-      "target": [
-        "AppImage",
-        "tar.gz"
-      ]
-    },
-    "asarUnpack": [
-      "node_modules/better-sqlite3/**/*.node"
-    ],
-    "npmRebuild": false
+    "typescript": "7.0.2"
   },
   "packageManager": "bun@1.4.4",
   "engines": {
     "node": ">=24.15.0 <25",
     "bun": ">=1.4.4 <2"
-  }
+  },
+  "homepage": "https://liferaft.loftwah.com/"
 }

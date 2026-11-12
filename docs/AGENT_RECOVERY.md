@@ -11,7 +11,10 @@ Liferaft can optionally let a locally running agent search selected indexed arch
 
 **A local connection does not make a cloud model local.** Your chosen agent may send requested snippets, message text, sender details, attachment names and recovery results to its provider. Liferaft asks you to acknowledge this when enabling access. Only choose archives you intend that agent to inspect.
 
-The packaged executable starts without a recovery window when given `--mcp`. It uses the same Electron runtime and native SQLite module as the desktop application. The normal app can remain open; indexing, changed files and stale selections are rejected when they would make a recovery ambiguous. The MCP process can also run with the ordinary window closed. It still needs a supported local desktop environment and its existing catalogue.
+The packaged executable starts its bundled Node recovery service when given
+`--mcp`. This path needs no window or GPU. The normal app can remain open.
+Indexing, changed files and stale selections are rejected when they would make
+a recovery ambiguous. The MCP process can also run with the window closed.
 
 This interface is local stdio only. A hosted-only chat cannot reach a process on your computer through this configuration. There is no public listener or remote archive endpoint.
 
@@ -25,7 +28,8 @@ opencode mcp add liferaft -- /absolute/path/to/Liferaft --mcp
 
 For paths containing spaces, quote the executable path. Use the exact executable shown by Liferaft. On macOS the packaged executable is normally inside the app bundle, for example `/Applications/Liferaft.app/Contents/MacOS/Liferaft`; a development build needs the additional application path shown by Liferaft.
 
-For configuration-file setup, current OpenCode uses `mcp.servers`:
+For configuration-file setup, OpenCode v2 uses `mcp.servers`. Set
+`codemode` to false to expose the recovery tools directly.
 
 ```json
 {
@@ -33,7 +37,8 @@ For configuration-file setup, current OpenCode uses `mcp.servers`:
     "servers": {
       "liferaft": {
         "type": "local",
-        "command": ["/absolute/path/to/Liferaft", "--mcp"]
+        "command": ["/absolute/path/to/Liferaft", "--mcp"],
+        "codemode": false
       }
     }
   }
@@ -52,7 +57,7 @@ command = "/absolute/path/to/Liferaft"
 args = ["--mcp"]
 ```
 
-Check the exact configuration against the client version you use. Client discovery alone is insufficient: verify a fictional search, message inspection and file export before trusting a newly configured combination with real recovery work. Current and legacy MCP wire protocols are exercised by the integration test; installed Codex and OpenCode application combinations still require a local check.
+Check the exact configuration against the client version you use. Client discovery alone is insufficient: verify a fictional search, message inspection and file export before trusting a newly configured combination with real recovery work. The integration tests exercise current and legacy wire protocols. See the [verification ledger](verification.md) for installed-client evidence.
 
 ## Scope, sources and revocation
 

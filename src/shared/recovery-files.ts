@@ -20,8 +20,14 @@ export interface SourceReadOptions {
   signal?: AbortSignal
 }
 
+export type TemporaryTracker = (
+  temporary: string,
+  parent: Pick<fs.Stats, 'dev' | 'ino'>
+) => () => void
+
 export interface ArchiveExportOptions extends SourceReadOptions {
   expectedIndexRevision?: string
+  trackTemporary?: TemporaryTracker
   /** Recheck the caller's grants and index revision immediately before publish. */
   validateBeforeCommit?: () => void | Promise<void>
 }
@@ -166,6 +172,34 @@ export async function writeArchiveRangeAtomically(
   const destination = path.join(directory, path.basename(input.destinationPath))
   const temporary = path.join(directory, `.liferaft-${randomUUID()}.tmp`)
   let temporaryCreated = false
+  let temporaryIdentity: fs.Stats | undefined
+  let untrack: (() => void) | undefined
+  const requireSameFolder = async () => {
+    const current = await fs.promises.lstat(directory)
+    if (
+      !current.isDirectory() ||
+      current.dev !== parentBefore.dev ||
+      current.ino !== parentBefore.ino ||
+      (await fs.promises.realpath(path.dirname(input.destinationPath))) !==
+        directory
+    ) {
+      throw new Error(
+        'The export folder changed during recovery. Select it again.'
+      )
+    }
+  }
+  const requireOwnedTemporary = async () => {
+    const current = await fs.promises.lstat(temporary)
+    if (
+      !current.isFile() ||
+      current.dev !== temporaryIdentity?.dev ||
+      current.ino !== temporaryIdentity.ino
+    ) {
+      throw new Error(
+        'The recovery temporary file changed. Try again in a different folder.'
+      )
+    }
+  }
 
   try {
     // Avoid doing an expensive extraction when the chosen file already exists.
@@ -178,6 +212,7 @@ export async function writeArchiveRangeAtomically(
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     }
 
+    untrack = input.trackTemporary?.(temporary, parentBefore)
     const output = await fs.promises.open(temporary, 'wx', 0o600)
     temporaryCreated = true
     const outputStream = output.createWriteStream({
@@ -185,6 +220,7 @@ export async function writeArchiveRangeAtomically(
       emitClose: false
     })
     try {
+      temporaryIdentity = await output.stat()
       await withSourceRange(
         input.sourcePath,
         input.offsetStart,
@@ -202,18 +238,9 @@ export async function writeArchiveRangeAtomically(
       await output.close()
     }
 
-    const parentAfter = await fs.promises.stat(directory)
-    if (
-      parentBefore.dev !== parentAfter.dev ||
-      parentBefore.ino !== parentAfter.ino ||
-      (await fs.promises.realpath(path.dirname(input.destinationPath))) !==
-        directory
-    ) {
-      throw new Error(
-        'The export folder changed during recovery. Select it again.'
-      )
-    }
     await input.validateBeforeCommit?.()
+    await requireSameFolder()
+    await requireOwnedTemporary()
     input.signal?.throwIfAborted()
     // link() is an atomic, exclusive publish on the destination filesystem.
     // rename() would silently overwrite a file created by a concurrent export.
@@ -237,7 +264,24 @@ export async function writeArchiveRangeAtomically(
       throw error
     }
   } finally {
-    if (temporaryCreated) await fs.promises.unlink(temporary)
+    try {
+      if (temporaryCreated) {
+        await requireSameFolder()
+        try {
+          await requireOwnedTemporary()
+          await fs.promises.unlink(temporary)
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+        }
+      }
+      untrack?.()
+    } catch {
+      // Preserve the recovery result and any journal record. A replaced folder
+      // or a remounted drive can make the temporary unsafe to remove right now.
+      console.error(
+        'Liferaft will check the recovery temporary again on restart.'
+      )
+    }
   }
 }
 
