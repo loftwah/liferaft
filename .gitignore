@@ -7,3 +7,16 @@ release
 *.db-wal
 coverage
 takeout/
+
+# Installed tooling and local/private recovery data
+.agents/skills/impeccable/
+.impeccable/
+*.mbox
+*.sqlite
+*.db
+*.eml
+.env
+.env.*
+!.env.example
+output/runs/
+!tests/fixtures/*.mbox

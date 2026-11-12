@@ -1,6 +1,6 @@
 {
   "name": "liferaft",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "private": true,
   "productName": "Liferaft",
   "description": "Local, read-only desktop app for indexing and recovering messages and attachments from large MBOX archives.",
@@ -22,39 +22,43 @@
     "preview": "electron-vite preview",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "bun test",
+    "test": "bun test tests/*.test.ts",
     "typecheck": "tsc --noEmit",
-    "check": "bun run format:check && bun test && bun run typecheck",
-    "postinstall": "electron-builder install-app-deps"
+    "check": "bun run format:check && bun run test && bun run test:integration && bun run typecheck",
+    "postinstall": "install-electron",
+    "test:integration": "node --import tsx --test tests/integration/*.test.ts",
+    "setup:desktop": "install-electron"
   },
   "dependencies": {
-    "@radix-ui/react-progress": "^1.1.7",
-    "better-sqlite3": "^12.4.1",
-    "dompurify": "^3.3.0",
-    "electron-log": "^5.4.3",
-    "mailparser": "^3.9.0",
-    "mime-types": "^3.0.1",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "react-virtuoso": "^4.14.1",
-    "sanitize-filename": "^1.6.3",
-    "zustand": "^5.0.8"
+    "@modelcontextprotocol/server": "2.4.0",
+    "better-sqlite3": "13.1.1",
+    "dompurify": "3.4.17",
+    "mailparser": "3.14.3",
+    "mime-types": "3.0.2",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "react-virtuoso": "4.18.21",
+    "sanitize-filename": "1.6.5",
+    "zod": "4.6.7",
+    "zustand": "5.1.0"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4.1.16",
-    "@types/better-sqlite3": "^7.6.13",
-    "@types/mime-types": "^3.0.1",
-    "@types/react": "^19.2.2",
-    "@types/react-dom": "^19.2.2",
-    "@vitejs/plugin-react": "^5.1.0",
-    "bun-types": "^1.3.4",
-    "electron": "^41.0.0",
-    "electron-builder": "^26.8.1",
-    "electron-vite": "^4.0.0",
-    "prettier": "^3.8.1",
-    "semver": "^7.7.4",
-    "typescript": "^5.9.3",
-    "vite": "^8.0.0"
+    "@tailwindcss/vite": "4.3.5",
+    "@types/better-sqlite3": "9.6.0",
+    "@types/jsdom": "30.0.0",
+    "@types/mime-types": "3.0.1",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.3.0",
+    "bun-types": "1.4.4",
+    "electron": "45.3.1",
+    "electron-builder": "26.18.0",
+    "electron-vite": "6.0.0",
+    "jsdom": "31.0.0",
+    "prettier": "3.10.1",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "vite": "8.3.8"
   },
   "build": {
     "appId": "com.loftwah.liferaft",
@@ -65,20 +69,9 @@
       "buildResources": "build"
     },
     "files": [
-      "!takeout{,/**}",
-      "!release{,/**}",
-      "!output{,/**}",
-      "!tests{,/**}",
-      "!src{,/**}",
-      "!scripts{,/**}",
-      "!build{,/**}",
-      "!.github{,/**}",
-      "!README.md",
-      "!LICENSE",
-      "!electron.vite.config.ts",
-      "!tsconfig.json",
-      "!prompt.txt",
-      "!*.jpg"
+      "out/**",
+      "package.json",
+      "LICENSE"
     ],
     "publish": [
       {
@@ -96,7 +89,8 @@
       "target": [
         "dmg",
         "zip"
-      ]
+      ],
+      "minimumSystemVersion": "13.0.0"
     },
     "win": {
       "icon": "build/icon.png",
@@ -112,6 +106,15 @@
         "AppImage",
         "tar.gz"
       ]
-    }
+    },
+    "asarUnpack": [
+      "node_modules/better-sqlite3/**/*.node"
+    ],
+    "npmRebuild": false
+  },
+  "packageManager": "bun@1.4.4",
+  "engines": {
+    "node": ">=24.15.0 <25",
+    "bun": ">=1.4.4 <2"
   }
 }

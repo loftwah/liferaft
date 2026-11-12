@@ -6,7 +6,7 @@ import {
   startTransition
 } from 'react'
 import { Virtuoso } from 'react-virtuoso'
-import DOMPurify from 'dompurify'
+import { sanitiseMessageHtml } from './message-html'
 import type {
   ArchiveSummary,
   AttachmentSummary,
@@ -18,6 +18,7 @@ import type {
 import { formatSnippetHtml } from '@shared/search-snippet'
 import { detectAttachmentSearchIntent } from '@shared/search'
 import { useLiferaftStore } from './store'
+import { AgentAccessPanel } from './AgentAccessPanel'
 
 type PreviewMode = 'formatted' | 'plain'
 const liferaftIconUrl = new URL(
@@ -54,6 +55,7 @@ export function App() {
   } = useLiferaftStore()
   const [previewMode, setPreviewMode] = useState<PreviewMode>('formatted')
   const [exportNotice, setExportNotice] = useState<string | null>(null)
+  const [shutdownNotice, setShutdownNotice] = useState<string | null>(null)
   const [showRefinements, setShowRefinements] = useState(false)
   const [focusedAttachmentId, setFocusedAttachmentId] = useState<number | null>(
     null
@@ -63,6 +65,8 @@ export function App() {
   useEffect(() => {
     void initialize()
   }, [initialize])
+
+  useEffect(() => window.liferaft?.onShutdownPending(setShutdownNotice), [])
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
@@ -77,20 +81,6 @@ export function App() {
   useEffect(() => {
     setPreviewMode(preview?.html ? 'formatted' : 'plain')
   }, [preview])
-
-  useEffect(() => {
-    if (!exportNotice) {
-      return
-    }
-
-    const handle = window.setTimeout(() => {
-      setExportNotice(null)
-    }, 3200)
-
-    return () => {
-      window.clearTimeout(handle)
-    }
-  }, [exportNotice])
 
   useEffect(() => {
     setFocusedAttachmentId(
@@ -196,15 +186,25 @@ export function App() {
     resultPromise: Promise<ExportResult>,
     successLabel: string
   ) => {
-    const result = await resultPromise
-    if (result.cancelled) {
-      return
-    }
-
-    const revealTarget = result.path ?? result.paths?.[0]
-    if (revealTarget) {
-      await window.liferaft.revealPath(revealTarget)
-      setExportNotice(`${successLabel} ready in Finder.`)
+    try {
+      const result = await resultPromise
+      if (result.cancelled) return
+      if (result.error) {
+        setExportNotice(result.error)
+        return
+      }
+      const revealTarget = result.path ?? result.paths?.[0]
+      if (revealTarget) {
+        setExportNotice(`${successLabel} saved to ${revealTarget}`)
+      } else {
+        setExportNotice('There are no attachments to export from this message.')
+      }
+    } catch (error) {
+      setExportNotice(
+        error instanceof Error
+          ? error.message
+          : 'The export could not finish. Try again.'
+      )
     }
   }
 
@@ -289,12 +289,19 @@ export function App() {
               >
                 Clear indexes
               </button>
+              <AgentAccessPanel archives={archives} />
             </div>
           ) : null}
         </section>
 
+        {shutdownNotice ? (
+          <div className="export-notice" role="status">
+            {shutdownNotice}
+          </div>
+        ) : null}
+
         {uiError ? (
-          <div className="error-banner">
+          <div className="error-banner" role="alert">
             <div>{uiError}</div>
             <button
               type="button"
@@ -309,7 +316,7 @@ export function App() {
         <section className="archive-panel">
           <div className="panel-section-header">
             <div>
-              <div className="section-title">Archive scope</div>
+              <div className="section-title">Archives to search</div>
               <div className="panel-caption">
                 {readyArchives.length} ready, {indexingArchives.length} indexing
               </div>
@@ -524,7 +531,8 @@ export function App() {
                         void handleExportResult(
                           window.liferaft.exportAttachment(
                             archiveId,
-                            attachmentId
+                            attachmentId,
+                            result.indexRevision
                           ),
                           'Attachment export'
                         )
@@ -547,11 +555,22 @@ export function App() {
             </div>
 
             {isLoadingPreview ? (
-              <div className="panel-empty">Loading message evidence…</div>
+              <div className="panel-empty" role="status">
+                Loading the message.
+              </div>
             ) : preview ? (
               <div className="preview-layout">
                 {exportNotice ? (
-                  <div className="export-notice">{exportNotice}</div>
+                  <div className="export-notice" role="status">
+                    {exportNotice}
+                    <button
+                      type="button"
+                      className="inline-action"
+                      onClick={() => setExportNotice(null)}
+                    >
+                      Dismiss
+                    </button>
+                  </div>
                 ) : null}
 
                 {selectedAttachment ? (
@@ -562,7 +581,8 @@ export function App() {
                       void handleExportResult(
                         window.liferaft.exportAttachment(
                           archiveId,
-                          attachmentId
+                          attachmentId,
+                          preview.indexRevision
                         ),
                         'Attachment export'
                       )
@@ -585,7 +605,8 @@ export function App() {
                           void handleExportResult(
                             window.liferaft.exportAllAttachments(
                               preview.archiveId,
-                              preview.id
+                              preview.id,
+                              preview.indexRevision
                             ),
                             'Attachments export'
                           )
@@ -651,6 +672,12 @@ export function App() {
                       </dd>
                       <dt>Archive</dt>
                       <dd>{preview.archiveName}</dd>
+                      <dt>Message reference</dt>
+                      <dd>
+                        <code>
+                          {preview.archiveId}:{preview.id}
+                        </code>
+                      </dd>
                     </dl>
                   </div>
 
@@ -663,7 +690,8 @@ export function App() {
                           void handleExportResult(
                             window.liferaft.exportMessage(
                               preview.archiveId,
-                              preview.id
+                              preview.id,
+                              preview.indexRevision
                             ),
                             'Message export'
                           )
@@ -678,7 +706,8 @@ export function App() {
                           void handleExportResult(
                             window.liferaft.exportAllAttachments(
                               preview.archiveId,
-                              preview.id
+                              preview.id,
+                              preview.indexRevision
                             ),
                             'Attachments export'
                           )
@@ -727,7 +756,8 @@ export function App() {
                               void handleExportResult(
                                 window.liferaft.exportAttachment(
                                   archiveId,
-                                  attachmentId
+                                  attachmentId,
+                                  preview.indexRevision
                                 ),
                                 'Attachment export'
                               )
@@ -1133,17 +1163,12 @@ function MessageBody({
   text: string
 }) {
   if (mode === 'formatted' && html) {
-    const safeHtml = DOMPurify.sanitize(html, {
-      USE_PROFILES: {
-        html: true
-      },
-      FORBID_TAGS: ['img', 'picture', 'source']
-    })
+    const safeHtml = sanitiseMessageHtml(html)
 
     return (
       <div className="message-body">
         <div className="message-body-note">
-          Inline and remote images are hidden in preview.
+          Images, links and interactive content are disabled in preview.
         </div>
         <div
           className="mail-html message-body-content"

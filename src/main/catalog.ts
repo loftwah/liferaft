@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { createRequire } from 'node:module'
 import type BetterSqlite3 from 'better-sqlite3'
 import { CATALOG_SCHEMA } from '@shared/schema'
 import type {
@@ -7,7 +8,6 @@ import type {
   ArchiveSummary,
   StorageSummary
 } from '@shared/contracts'
-import { app } from './electron-runtime'
 import Database from '@shared/sqlite-runtime'
 
 interface ArchiveRow {
@@ -41,13 +41,31 @@ export class CatalogStore {
   private readonly baseDir: string
   private readonly archivesDir: string
 
-  constructor() {
-    this.baseDir = app.getPath('userData')
-    fs.mkdirSync(this.baseDir, { recursive: true })
+  constructor(options: { baseDir?: string; readonly?: boolean } = {}) {
+    this.baseDir =
+      options.baseDir ??
+      (
+        createRequire(import.meta.url)(
+          'electron/main'
+        ) as typeof import('electron/main')
+      ).app.getPath('userData')
     this.archivesDir = path.join(this.baseDir, 'archives')
-    fs.mkdirSync(this.archivesDir, { recursive: true })
-    this.db = new Database(path.join(this.baseDir, 'catalog.sqlite'))
-    this.db.exec(CATALOG_SCHEMA)
+    if (!options.readonly) {
+      fs.mkdirSync(this.archivesDir, { recursive: true })
+    }
+    this.db = new Database(path.join(this.baseDir, 'catalog.sqlite'), {
+      readonly: options.readonly ?? false,
+      fileMustExist: options.readonly ?? false
+    })
+    if (options.readonly) {
+      this.db.pragma('query_only = ON')
+    } else {
+      this.db.exec(CATALOG_SCHEMA)
+    }
+  }
+
+  close(): void {
+    this.db.close()
   }
 
   getArchiveDbPath(archiveId: string): string {

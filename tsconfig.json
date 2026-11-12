@@ -6,10 +6,9 @@
     "module": "ESNext",
     "skipLibCheck": true,
     "moduleResolution": "Bundler",
-    "baseUrl": ".",
     "paths": {
-      "@shared/*": ["src/shared/*"],
-      "@renderer/*": ["src/renderer/*"]
+      "@shared/*": ["./src/shared/*"],
+      "@renderer/*": ["./src/renderer/*"]
     },
     "allowImportingTsExtensions": false,
     "resolveJsonModule": true,
@@ -20,7 +19,7 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "types": ["electron-vite/node", "bun-types"]
+    "types": ["electron-vite/node", "vite/client", "bun-types"]
   },
   "include": ["src", "electron.vite.config.ts", "tests"]
 }

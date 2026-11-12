@@ -10,6 +10,7 @@ import {
   localDateEndToIso,
   localDateStartToIso
 } from '@shared/search'
+import { getArchiveRecoveryIdentity } from '@shared/recovery-files'
 import { ArchiveDatabasePool } from './archive-db'
 import { CatalogStore } from './catalog'
 
@@ -193,6 +194,7 @@ export class SearchService {
     matchQuery: string,
     limit: number
   ): SearchResultRow[] {
+    const { indexRevision } = getArchiveRecoveryIdentity(db)
     const params: Array<string | number> = [matchQuery]
     const filterClause = this.buildFilterClause(query, params)
     params.push(limit)
@@ -219,10 +221,15 @@ export class SearchService {
         )
         .all(...params) as MessageSearchRow[]
     } catch {
-      return []
+      throw new Error(
+        'The archive index could not be searched. Reindex the archive and try again.'
+      )
     }
 
-    return rows.map((row) => this.mapMessageRow(row, archive.name))
+    this.verifyIndexRevision(db, indexRevision)
+    return rows.map((row) =>
+      this.mapMessageRow(row, archive.name, indexRevision)
+    )
   }
 
   private searchWithoutText(
@@ -231,6 +238,7 @@ export class SearchService {
     query: SearchQuery,
     limit: number
   ): SearchResultRow[] {
+    const { indexRevision } = getArchiveRecoveryIdentity(db)
     const params: Array<string | number> = []
     const filterClause = this.buildFilterClause(query, params)
     params.push(limit)
@@ -254,8 +262,9 @@ export class SearchService {
       )
       .all(...params) as MessageSearchRow[]
 
+    this.verifyIndexRevision(db, indexRevision)
     return rows.map((row, index) => ({
-      ...this.mapMessageRow(row, archive.name),
+      ...this.mapMessageRow(row, archive.name, indexRevision),
       rank: index + 1
     }))
   }
@@ -267,6 +276,7 @@ export class SearchService {
     matchQuery: string,
     limit: number
   ): SearchResultRow[] {
+    const { indexRevision } = getArchiveRecoveryIdentity(db)
     const params: Array<string | number> = [matchQuery]
     const filterClause = this.buildFilterClause(query, params)
     params.push(limit)
@@ -298,10 +308,15 @@ export class SearchService {
         )
         .all(...params) as AttachmentSearchRow[]
     } catch {
-      return []
+      throw new Error(
+        'The archive index could not be searched. Reindex the archive and try again.'
+      )
     }
 
-    return rows.map((row) => this.mapAttachmentRow(row, archive.name))
+    this.verifyIndexRevision(db, indexRevision)
+    return rows.map((row) =>
+      this.mapAttachmentRow(row, archive.name, indexRevision)
+    )
   }
 
   private searchAttachmentsWithoutText(
@@ -310,6 +325,7 @@ export class SearchService {
     query: SearchQuery,
     limit: number
   ): SearchResultRow[] {
+    const { indexRevision } = getArchiveRecoveryIdentity(db)
     const params: Array<string | number> = []
     const filterClause = this.buildFilterClause(query, params)
     params.push(limit)
@@ -338,18 +354,29 @@ export class SearchService {
       )
       .all(...params) as AttachmentSearchRow[]
 
+    this.verifyIndexRevision(db, indexRevision)
     return rows.map((row, index) => ({
-      ...this.mapAttachmentRow(row, archive.name),
+      ...this.mapAttachmentRow(row, archive.name, indexRevision),
       rank: index + 1
     }))
   }
 
+  private verifyIndexRevision(db: Database.Database, expected: string): void {
+    if (getArchiveRecoveryIdentity(db).indexRevision !== expected) {
+      throw new Error(
+        'The archive index changed during search. Search the archive again.'
+      )
+    }
+  }
+
   private mapMessageRow(
     row: MessageSearchRow,
-    archiveName: string
+    archiveName: string,
+    indexRevision: string
   ): SearchResultRow {
     return {
-      resultId: `message:${row.archive_id}:${row.id}`,
+      resultId: `message:${row.archive_id}:${indexRevision}:${row.id}`,
+      indexRevision,
       kind: 'message',
       id: row.id,
       archiveId: row.archive_id,
@@ -370,10 +397,12 @@ export class SearchService {
 
   private mapAttachmentRow(
     row: AttachmentSearchRow,
-    archiveName: string
+    archiveName: string,
+    indexRevision: string
   ): SearchResultRow {
     return {
-      resultId: `attachment:${row.archive_id}:${row.attachment_id}`,
+      resultId: `attachment:${row.archive_id}:${indexRevision}:${row.attachment_id}`,
+      indexRevision,
       kind: 'attachment',
       id: row.id,
       archiveId: row.archive_id,

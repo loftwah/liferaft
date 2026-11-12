@@ -18,6 +18,10 @@ export const ARCHIVE_SCHEMA = `
   PRAGMA journal_mode = WAL;
   PRAGMA synchronous = NORMAL;
   PRAGMA foreign_keys = ON;
+  CREATE TABLE IF NOT EXISTS archive_metadata (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS messages (
     id INTEGER PRIMARY KEY,
     archive_id TEXT NOT NULL,

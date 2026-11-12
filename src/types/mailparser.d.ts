@@ -1,7 +1,7 @@
 declare module 'mailparser' {
-  import { Writable } from 'node:stream'
+  import { Readable, Transform } from 'node:stream'
 
-  export class MailParser extends Writable {
+  export class MailParser extends Transform {
     constructor(options?: Record<string, unknown>)
     on(
       event: 'headers',
@@ -12,7 +12,7 @@ declare module 'mailparser' {
       listener: (
         data:
           | { type: 'text'; text?: string; html?: string | null }
-          | { type: 'attachment'; release: () => void }
+          | { type: 'attachment'; content: Readable; release: () => void }
       ) => void
     ): this
   }

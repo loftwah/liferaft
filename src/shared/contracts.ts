@@ -23,12 +23,7 @@ export interface StorageSummary {
 export interface ImportProgressEvent {
   archiveId: string
   phase:
-    | 'queued'
-    | 'starting'
-    | 'indexing'
-    | 'completed'
-    | 'failed'
-    | 'cancelled'
+    'queued' | 'starting' | 'indexing' | 'completed' | 'failed' | 'cancelled'
   bytesProcessed: number
   totalBytes: number
   messagesProcessed: number
@@ -55,6 +50,7 @@ export interface SearchQuery {
 
 export interface SearchResultRow {
   resultId: string
+  indexRevision: string
   kind: 'message' | 'attachment'
   id: number
   archiveId: string
@@ -83,6 +79,7 @@ export interface AttachmentSummary {
 
 export interface MessagePreview {
   id: number
+  indexRevision: string
   archiveId: string
   archiveName: string
   subject: string
@@ -99,9 +96,21 @@ export interface ExportResult {
   cancelled: boolean
   path?: string
   paths?: string[]
+  error?: string
+}
+
+export interface AgentAccessStatus {
+  enabled: boolean
+  archiveIds: string[]
+  exportDirectories: Array<{ id: string; name: string; path: string }>
+  command: string
+  args: string[]
 }
 
 export interface LiferaftApi {
+  getAgentAccess: () => Promise<AgentAccessStatus>
+  enableAgentAccess: (archiveIds: string[]) => Promise<AgentAccessStatus>
+  revokeAgentAccess: () => Promise<AgentAccessStatus>
   selectMboxFiles: () => Promise<string[]>
   startImport: (paths: string[]) => Promise<ArchiveSummary[]>
   cancelImport: (archiveId: string) => Promise<void>
@@ -111,18 +120,26 @@ export interface LiferaftApi {
   searchMessages: (query: SearchQuery) => Promise<SearchResultRow[]>
   loadMessagePreview: (
     archiveId: string,
-    messageId: number
+    messageId: number,
+    indexRevision: string
   ) => Promise<MessagePreview>
   exportAttachment: (
     archiveId: string,
-    attachmentId: number
+    attachmentId: number,
+    indexRevision: string
   ) => Promise<ExportResult>
   exportAllAttachments: (
     archiveId: string,
-    messageId: number
+    messageId: number,
+    indexRevision: string
   ) => Promise<ExportResult>
-  exportMessage: (archiveId: string, messageId: number) => Promise<ExportResult>
+  exportMessage: (
+    archiveId: string,
+    messageId: number,
+    indexRevision: string
+  ) => Promise<ExportResult>
   revealPath: (path: string) => Promise<void>
+  onShutdownPending: (listener: (notice: string | null) => void) => () => void
   onImportProgress: (
     listener: (event: ImportProgressEvent) => void
   ) => () => void

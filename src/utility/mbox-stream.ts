@@ -1,6 +1,6 @@
-import fs from 'node:fs'
+import { randomUUID } from 'node:crypto'
 import { MailParser } from 'mailparser'
-import { once } from 'node:events'
+import { pipeline } from 'node:stream/promises'
 import { Readable } from 'node:stream'
 import {
   isAttachmentPart,
@@ -15,6 +15,9 @@ import {
 } from '@shared/schema'
 import { isMboxSeparatorLine, unescapeMboxRdLine } from '@shared/mbox'
 import Database from '@shared/sqlite-runtime'
+import { captureSourceSnapshot, withSourceRange } from '@shared/recovery-files'
+
+export const MAX_INDEXED_MESSAGE_BYTES = 64 * 1024 * 1024
 
 export interface ImporterProgress {
   bytesProcessed: number
@@ -61,14 +64,16 @@ export async function importMboxFile(
   onProgress: (progress: ImporterProgress) => void,
   isCancelled: () => boolean
 ): Promise<{ messageCount: number; attachmentCount: number }> {
+  const sourceSnapshot = await captureSourceSnapshot(job.sourcePath)
   const db = new Database(job.dbPath)
-  db.exec(ARCHIVE_SCHEMA)
-  db.exec(
-    'DELETE FROM attachments; DELETE FROM messages; DELETE FROM fts_messages; VACUUM;'
-  )
+  try {
+    db.exec(ARCHIVE_SCHEMA)
+    db.exec(
+      'DELETE FROM archive_metadata; DELETE FROM attachments; DELETE FROM messages; DELETE FROM fts_messages; VACUUM;'
+    )
 
-  const insertMessage = db.prepare(
-    `INSERT INTO messages (
+    const insertMessage = db.prepare(
+      `INSERT INTO messages (
       archive_id,
       subject,
       from_text,
@@ -91,9 +96,9 @@ export async function importMboxFile(
       @mboxOffsetEnd,
       @snippet
     )`
-  )
-  const insertAttachment = db.prepare(
-    `INSERT INTO attachments (
+    )
+    const insertAttachment = db.prepare(
+      `INSERT INTO attachments (
       message_id,
       filename,
       content_type,
@@ -114,132 +119,154 @@ export async function importMboxFile(
       @bodyOffsetStart,
       @bodyOffsetEnd
     )`
-  )
-  const insertFts = db.prepare(
-    `INSERT INTO fts_messages (message_id, subject, attachment_names, sender, recipients, body)
+    )
+    const insertFts = db.prepare(
+      `INSERT INTO fts_messages (message_id, subject, attachment_names, sender, recipients, body)
      VALUES (@messageId, @subject, @attachmentNames, @sender, @recipients, @body)`
-  )
+    )
 
-  const persistMessage = db.transaction((parsed: ParsedMessage) => {
-    const messageResult = insertMessage.run({
-      archiveId: job.archiveId,
-      subject: parsed.message.subject,
-      fromText: parsed.message.fromText,
-      toText: parsed.message.toText,
-      ccText: parsed.message.ccText,
-      date: parsed.message.date,
-      hasAttachments: parsed.attachments.length > 0 ? 1 : 0,
-      mboxOffsetStart: parsed.message.mboxOffsetStart,
-      mboxOffsetEnd: parsed.message.mboxOffsetEnd,
-      snippet: parsed.message.snippet
+    const persistMessage = db.transaction((parsed: ParsedMessage) => {
+      const messageResult = insertMessage.run({
+        archiveId: job.archiveId,
+        subject: parsed.message.subject,
+        fromText: parsed.message.fromText,
+        toText: parsed.message.toText,
+        ccText: parsed.message.ccText,
+        date: parsed.message.date,
+        hasAttachments: parsed.attachments.length > 0 ? 1 : 0,
+        mboxOffsetStart: parsed.message.mboxOffsetStart,
+        mboxOffsetEnd: parsed.message.mboxOffsetEnd,
+        snippet: parsed.message.snippet
+      })
+
+      const messageId = Number(messageResult.lastInsertRowid)
+      for (const attachment of parsed.attachments) {
+        insertAttachment.run({
+          messageId,
+          filename: attachment.filename,
+          contentType: attachment.contentType,
+          contentTransferEncoding: attachment.contentTransferEncoding,
+          sizeEstimate: attachment.sizeEstimate,
+          offsetStart: attachment.offsetStart,
+          offsetEnd: attachment.offsetEnd,
+          bodyOffsetStart: attachment.bodyOffsetStart,
+          bodyOffsetEnd: attachment.bodyOffsetEnd
+        })
+      }
+
+      insertFts.run({
+        messageId,
+        subject: parsed.message.subject,
+        attachmentNames: parsed.attachments
+          .map((attachment) => attachment.filename ?? '')
+          .join(' '),
+        sender: parsed.message.fromText,
+        recipients: [parsed.message.toText, parsed.message.ccText]
+          .filter(Boolean)
+          .join(' '),
+        body: parsed.message.bodyText
+      })
     })
 
-    const messageId = Number(messageResult.lastInsertRowid)
-    for (const attachment of parsed.attachments) {
-      insertAttachment.run({
-        messageId,
-        filename: attachment.filename,
-        contentType: attachment.contentType,
-        contentTransferEncoding: attachment.contentTransferEncoding,
-        sizeEstimate: attachment.sizeEstimate,
-        offsetStart: attachment.offsetStart,
-        offsetEnd: attachment.offsetEnd,
-        bodyOffsetStart: attachment.bodyOffsetStart,
-        bodyOffsetEnd: attachment.bodyOffsetEnd
+    const totalBytes = sourceSnapshot.size
+    let bytesProcessed = 0
+    let messagesProcessed = 0
+    let attachmentsProcessed = 0
+    let lastProgressAt = Date.now()
+    const startedAt = Date.now()
+
+    const emitProgress = (force = false) => {
+      if (!force && Date.now() - lastProgressAt < 150) {
+        return
+      }
+
+      lastProgressAt = Date.now()
+      const elapsed = Math.max(1, Date.now() - startedAt) / 1000
+      const bytesPerSecond = bytesProcessed / elapsed
+      const etaSeconds =
+        bytesPerSecond > 0
+          ? Math.max(
+              0,
+              Math.round((totalBytes - bytesProcessed) / bytesPerSecond)
+            )
+          : null
+
+      onProgress({
+        bytesProcessed,
+        totalBytes,
+        messagesProcessed,
+        attachmentsProcessed,
+        etaSeconds
       })
     }
 
-    insertFts.run({
-      messageId,
-      subject: parsed.message.subject,
-      attachmentNames: parsed.attachments
-        .map((attachment) => attachment.filename ?? '')
-        .join(' '),
-      sender: parsed.message.fromText,
-      recipients: [parsed.message.toText, parsed.message.ccText]
-        .filter(Boolean)
-        .join(' '),
-      body: parsed.message.bodyText
-    })
-  })
-
-  const totalBytes = fs.statSync(job.sourcePath).size
-  let bytesProcessed = 0
-  let messagesProcessed = 0
-  let attachmentsProcessed = 0
-  let lastProgressAt = Date.now()
-  let startedAt = Date.now()
-
-  const emitProgress = (force = false) => {
-    if (!force && Date.now() - lastProgressAt < 150) {
-      return
-    }
-
-    lastProgressAt = Date.now()
-    const elapsed = Math.max(1, Date.now() - startedAt) / 1000
-    const bytesPerSecond = bytesProcessed / elapsed
-    const etaSeconds =
-      bytesPerSecond > 0
-        ? Math.max(
-            0,
-            Math.round((totalBytes - bytesProcessed) / bytesPerSecond)
-          )
-        : null
-
-    onProgress({
-      bytesProcessed,
+    await withSourceRange(
+      job.sourcePath,
+      0,
       totalBytes,
-      messagesProcessed,
-      attachmentsProcessed,
-      etaSeconds
-    })
-  }
+      async (source) =>
+        streamMbox(
+          source,
+          async (message) => {
+            if (isCancelled()) throw new Error('Import cancelled')
+            let parsed: ParsedMessage
+            try {
+              parsed = await parseMessage(job.archiveId, message)
+            } catch {
+              throw new Error(
+                `Could not read message ${messagesProcessed + 1}. Reimport after checking the archive.`
+              )
+            }
+            persistMessage(parsed)
+            messagesProcessed += 1
+            attachmentsProcessed += parsed.attachments.length
+            emitProgress()
+          },
+          (processedBytes) => {
+            if (isCancelled()) throw new Error('Import cancelled')
+            bytesProcessed = processedBytes
+            emitProgress()
+          }
+        ),
+      { expectedSource: sourceSnapshot }
+    )
 
-  await streamMbox(
-    job.sourcePath,
-    async (message) => {
-      if (isCancelled()) {
-        throw new Error('Import cancelled')
-      }
-
-      try {
-        const parsed = await parseMessage(job.archiveId, message)
-        persistMessage(parsed)
-        messagesProcessed += 1
-        attachmentsProcessed += parsed.attachments.length
-      } catch (error) {
-        console.error('Failed to parse message', error)
-      }
-
-      emitProgress()
-    },
-    (processedBytes) => {
-      bytesProcessed = processedBytes
-      emitProgress()
+    if (isCancelled()) throw new Error('Import cancelled')
+    db.transaction(() => {
+      const write = db.prepare(
+        'INSERT INTO archive_metadata (key, value) VALUES (?, ?)'
+      )
+      write.run('source_snapshot', JSON.stringify(sourceSnapshot))
+      write.run('index_revision', randomUUID())
+    })()
+    emitProgress(true)
+    return {
+      messageCount: messagesProcessed,
+      attachmentCount: attachmentsProcessed
     }
-  )
-
-  emitProgress(true)
-  db.close()
-
-  return {
-    messageCount: messagesProcessed,
-    attachmentCount: attachmentsProcessed
+  } finally {
+    db.close()
   }
 }
 
 async function streamMbox(
-  sourcePath: string,
+  stream: Readable,
   onMessage: (message: FinalizedMessage) => Promise<void>,
   onBytes: (bytesProcessed: number) => void
 ): Promise<void> {
-  const stream = fs.createReadStream(sourcePath, {
-    highWaterMark: 1024 * 1024
-  })
-
   let buffered = Buffer.alloc(0)
   let bytesProcessed = 0
   let currentBuffers: Buffer[] = []
+  let currentBytes = 0
+  const append = (line: Buffer) => {
+    currentBytes += line.length
+    if (currentBytes > MAX_INDEXED_MESSAGE_BYTES) {
+      throw new Error(
+        'A message exceeds the 64 MiB indexing limit. Split or remove that message from a separate copy of the archive.'
+      )
+    }
+    currentBuffers.push(Buffer.from(line))
+  }
   let currentStartOffset = 0
   let currentOpen = false
   let dataStartOffset = 0
@@ -270,6 +297,7 @@ async function streamMbox(
 
         currentOpen = true
         currentBuffers = []
+        currentBytes = 0
         currentStartOffset = lineOffset + line.length
       } else {
         if (!currentOpen) {
@@ -277,13 +305,18 @@ async function streamMbox(
           currentStartOffset = lineOffset
         }
 
-        currentBuffers.push(Buffer.from(line))
+        append(line)
       }
 
       lineStart = index + 1
     }
 
     buffered = Buffer.from(data.subarray(lineStart))
+    if (currentBytes + buffered.length > MAX_INDEXED_MESSAGE_BYTES) {
+      throw new Error(
+        'A message exceeds the 64 MiB indexing limit. Use a separate, smaller archive copy.'
+      )
+    }
     onBytes(bytesProcessed)
   }
 
@@ -293,7 +326,7 @@ async function streamMbox(
       currentStartOffset = dataStartOffset
     }
 
-    currentBuffers.push(Buffer.from(buffered))
+    append(buffered)
   }
 
   if (currentOpen && currentBuffers.length > 0) {
@@ -339,17 +372,12 @@ async function parseMessage(
     if (data.type === 'text') {
       text = data.text ?? ''
     } else if (data.type === 'attachment') {
+      data.content.resume()
       data.release()
     }
   })
 
-  Readable.from([normalized]).pipe(parser)
-  await Promise.race([
-    once(parser, 'end'),
-    once(parser, 'error').then(([error]) => {
-      throw error
-    })
-  ])
+  await pipeline(Readable.from([normalized]), parser)
 
   if (!subject || !fromText || !toText || !date) {
     const fallback = fallbackParseHeaders(normalized)
