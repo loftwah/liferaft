@@ -34,6 +34,8 @@ interface AttachmentSearchRow extends MessageSearchRow {
 }
 
 export class SearchService {
+  private readonly filenameFunctions = new WeakSet<Database.Database>()
+
   constructor(
     private readonly catalog: CatalogStore,
     private readonly pool: ArchiveDatabasePool
@@ -46,7 +48,10 @@ export class SearchService {
     const terms = extractSearchTerms(query.text).map((term) =>
       term.toLowerCase()
     )
-    const preferAttachments = Boolean(query.preferAttachments)
+    const requireAttachmentMatch = Boolean(
+      query.filters.filenames?.length || query.filters.extensions?.length
+    )
+    const preferAttachments = requireAttachmentMatch || query.preferAttachments
 
     if (preferAttachments) {
       const attachmentRows = this.searchAttachmentResults(
@@ -57,7 +62,7 @@ export class SearchService {
         perArchiveLimit
       )
 
-      if (attachmentRows.length > 0) {
+      if (attachmentRows.length > 0 || requireAttachmentMatch) {
         return attachmentRows.slice(0, query.limit ?? 250)
       }
     }
@@ -74,11 +79,12 @@ export class SearchService {
     }
 
     return combined
-      .sort(
-        (left, right) =>
-          left.rank - right.rank ||
-          compareDatesDesc(left.date, right.date) ||
-          left.subject.localeCompare(right.subject)
+      .sort((left, right) =>
+        matchQuery
+          ? left.rank - right.rank ||
+            compareDatesDesc(left.date, right.date) ||
+            left.subject.localeCompare(right.subject)
+          : compareDatesDesc(left.date, right.date)
       )
       .slice(0, query.limit ?? 250)
   }
@@ -94,6 +100,17 @@ export class SearchService {
 
     for (const archive of archives) {
       const db = this.pool.getDatabase(archive)
+      if (
+        (query.filters.filenames?.length || query.filters.extensions?.length) &&
+        !this.filenameFunctions.has(db)
+      ) {
+        db.function(
+          'liferaft_fold_filename',
+          { deterministic: true },
+          foldFilename
+        )
+        this.filenameFunctions.add(db)
+      }
       const rows = matchQuery
         ? this.searchAttachmentsWithText(
             db,
@@ -113,7 +130,11 @@ export class SearchService {
     }
 
     return combined
-      .sort((left, right) => this.compareAttachmentResults(left, right, terms))
+      .sort((left, right) =>
+        matchQuery
+          ? this.compareAttachmentResults(left, right, terms)
+          : compareDatesDesc(left.date, right.date)
+      )
       .map((row, index) => ({
         ...row,
         rank: index + 1
@@ -157,12 +178,28 @@ export class SearchService {
 
   private buildFilterClause(
     query: SearchQuery,
-    params: Array<string | number>
+    params: Array<string | number>,
+    includeAttachments = false
   ): string {
     const clauses: string[] = []
 
     if (query.filters.hasAttachments) {
       clauses.push('m.has_attachments = 1')
+    }
+
+    if (includeAttachments) {
+      for (const filename of query.filters.filenames ?? []) {
+        clauses.push('instr(liferaft_fold_filename(a.filename), ?) > 0')
+        params.push(foldFilename(filename))
+      }
+
+      for (const extension of query.filters.extensions ?? []) {
+        clauses.push(
+          'substr(liferaft_fold_filename(a.filename), -length(?)) = ?'
+        )
+        const suffix = foldFilename(`.${extension}`)
+        params.push(suffix, suffix)
+      }
     }
 
     if (query.filters.sender.trim()) {
@@ -171,14 +208,14 @@ export class SearchService {
     }
 
     if (query.filters.dateFrom) {
-      clauses.push("COALESCE(m.date, '') >= ?")
+      clauses.push('m.date >= ?')
       params.push(
         localDateStartToIso(query.filters.dateFrom) ?? query.filters.dateFrom
       )
     }
 
     if (query.filters.dateTo) {
-      clauses.push("COALESCE(m.date, '') <= ?")
+      clauses.push('m.date <= ?')
       params.push(
         localDateEndToIso(query.filters.dateTo) ?? query.filters.dateTo
       )
@@ -257,16 +294,15 @@ export class SearchService {
            999999.0 AS rank
          FROM messages m
          WHERE 1 = 1${filterClause}
-         ORDER BY COALESCE(m.date, '') DESC, m.id DESC
+         ORDER BY m.date DESC, m.id DESC
          LIMIT ?`
       )
       .all(...params) as MessageSearchRow[]
 
     this.verifyIndexRevision(db, indexRevision)
-    return rows.map((row, index) => ({
-      ...this.mapMessageRow(row, archive.name, indexRevision),
-      rank: index + 1
-    }))
+    return rows.map((row) =>
+      this.mapMessageRow(row, archive.name, indexRevision)
+    )
   }
 
   private searchAttachmentsWithText(
@@ -278,7 +314,7 @@ export class SearchService {
   ): SearchResultRow[] {
     const { indexRevision } = getArchiveRecoveryIdentity(db)
     const params: Array<string | number> = [matchQuery]
-    const filterClause = this.buildFilterClause(query, params)
+    const filterClause = this.buildFilterClause(query, params, true)
     params.push(limit)
 
     let rows: AttachmentSearchRow[]
@@ -327,7 +363,7 @@ export class SearchService {
   ): SearchResultRow[] {
     const { indexRevision } = getArchiveRecoveryIdentity(db)
     const params: Array<string | number> = []
-    const filterClause = this.buildFilterClause(query, params)
+    const filterClause = this.buildFilterClause(query, params, true)
     params.push(limit)
 
     const rows = db
@@ -349,7 +385,7 @@ export class SearchService {
          FROM messages m
          JOIN attachments a ON a.message_id = m.id
          WHERE 1 = 1${filterClause}
-         ORDER BY COALESCE(m.date, '') DESC, m.id DESC, a.id DESC
+         ORDER BY m.date DESC, m.id DESC, a.id DESC
          LIMIT ?`
       )
       .all(...params) as AttachmentSearchRow[]
@@ -569,8 +605,15 @@ function recencySignal(date: string | null): number {
   return 0
 }
 
+function foldFilename(filename: string): string
+function foldFilename(filename: string | null): string | null
+function foldFilename(filename: string | null): string | null {
+  return filename?.normalize('NFC').toLowerCase() ?? null
+}
+
 function compareDatesDesc(left: string | null, right: string | null): number {
-  const leftTime = left ? new Date(left).getTime() : Number.NEGATIVE_INFINITY
-  const rightTime = right ? new Date(right).getTime() : Number.NEGATIVE_INFINITY
-  return rightTime - leftTime
+  // Index dates are UTC ISO strings with fixed precision; missing dates sort last.
+  if (left === right) return 0
+  if (!left || (right && left < right)) return 1
+  return -1
 }

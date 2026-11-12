@@ -1451,7 +1451,7 @@ dependencies = [
 
 [[package]]
 name = "liferaft"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "fs2",
  "libc",

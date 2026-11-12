@@ -84,12 +84,12 @@ test(
       assert.equal(response.id, id)
       return response
     }
-    const search = (text: string) =>
+    const search = (text: string, archiveId: string | null = legacyId) =>
       request<{ rows: (SearchResultRow & { messageFilename: string })[] }>(
         'search',
         {
           text,
-          archiveId: legacyId,
+          archiveId,
           sender: '',
           dateFrom: '',
           dateTo: '',
@@ -140,6 +140,13 @@ test(
       assert.doesNotMatch(result?.text ?? '', /NeverRender|https:/)
       assert.equal(Object.hasOwn(result ?? {}, 'html'), false)
 
+      assert.deepEqual((await search('filename:kelp')).result?.rows, [])
+      assert.deepEqual((await search('invoice filetype:txt')).result?.rows, [])
+      assert.equal(
+        (await search('filename:"invoice.pdf" filetype:.PDF from:Alice')).result
+          ?.rows[0]?.attachmentFilename,
+        'invoice.pdf'
+      )
       const file = (await search('filename:invoice')).result?.rows[0]
       assert.equal(file?.attachmentFilename, 'invoice.pdf')
       assert.equal(file?.messageFilename, 'Invoice from Alice.eml')
@@ -184,6 +191,44 @@ test(
       assert.equal(
         indexFiles.filter((file) => file.endsWith('.sqlite')).length,
         1
+      )
+
+      const other = path.join(dir, 'older.mbox')
+      const undated = html
+        .toString()
+        .replace('Subject: HTML-only order', 'Subject: No date')
+        .replace(/^Date:.*\r\n/m, '')
+      const older = html
+        .toString()
+        .replace('Subject: HTML-only order', 'Subject: Older delivery')
+        .replace('Thu, 12 Nov 2026', 'Mon, 09 Nov 2026')
+      await fs.writeFile(other, older + undated)
+      assert.equal(
+        (await request('import', { sourcePath: other })).error,
+        undefined
+      )
+      for (let i = 0; i < 80; i++) {
+        const archives = (await request<Archive[]>('archives')).result
+        if (
+          archives?.length === 2 &&
+          archives.every((a) => a.status === 'ready')
+        )
+          break
+        await delay(25)
+      }
+      const across = (await search('', null)).result?.rows ?? []
+      assert.equal(across.length, 4)
+      assert.deepEqual(
+        across.map((row) => row.date),
+        [...across.map((row) => row.date)].sort((a, b) =>
+          (b ?? '').localeCompare(a ?? '')
+        )
+      )
+      assert.deepEqual(
+        (await search('before:2026-11-11', null)).result?.rows.map(
+          (row) => row.subject
+        ),
+        ['Older delivery']
       )
     } finally {
       engine.stdin.end()

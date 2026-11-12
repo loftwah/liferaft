@@ -271,6 +271,29 @@ describe('agent recovery through the existing engine', () => {
     })
   })
 
+  test('applies filename and extension filters to the same attachment before limiting', async () => {
+    const f = await fixture(2)
+    f.db.exec(`
+      UPDATE attachments SET filename = 'Facturé 2026.TXT' WHERE id = 1;
+      INSERT INTO attachments
+      SELECT 3, message_id, 'notes.pdf', content_type, content_transfer_encoding,
+        size_estimate, offset_start, offset_end, body_offset_start, body_offset_end
+      FROM attachments WHERE id = 1;
+      UPDATE attachments SET filename = 'FACTURÉ 2026.PDF' WHERE id = 2;
+    `)
+    const result = await f.service.search({
+      query: 'invoice filename:"facture\u0301 2026" filetype:.pdf',
+      limit: 1
+    })
+    expect(
+      result.results.map((row) => [row.subject, row.attachment?.filename])
+    ).toEqual([['Invoice 2', 'FACTURÉ 2026.PDF']])
+    expect(result.completeness).toBe('complete')
+    expect(
+      (await f.service.search({ query: 'filename:attached' })).results
+    ).toEqual([])
+  })
+
   test('ordinary searches include matching messages with and without attachments', async () => {
     const f = await fixture(2)
     f.db.prepare('DELETE FROM attachments WHERE message_id = 2').run()

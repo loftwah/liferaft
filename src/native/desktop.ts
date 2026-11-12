@@ -385,6 +385,7 @@ export async function runDesktop(dataPath: string) {
                   parsed.preferAttachments ||
                   (hasAttachments && parsed.text.trim().length > 0),
                 filters: {
+                  ...parsed.filters,
                   archiveIds: compatible.map((archive) => archive.id),
                   hasAttachments,
                   sender: [input.sender, parsed.filters.sender]

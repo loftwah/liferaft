@@ -24,7 +24,7 @@ arm64 SQLite prebuild. The script verifies the bundle signature and creates an
 FTS5 table with the bundled engine before making the DMG and its SHA-256 file.
 No development runtime is needed to run the installed bundle.
 
-The public v0.3.0 DMG uses ad-hoc signing and is labelled unnotarised.
+The public v0.3.1 DMG uses ad-hoc signing and is labelled unnotarised.
 For notarised distribution, use a configured Developer ID Application identity as
 `LIFERAFT_SIGN_IDENTITY` and a preconfigured notarytool Keychain profile as
 `LIFERAFT_NOTARY_PROFILE`. The script signs, submits, staples and validates the

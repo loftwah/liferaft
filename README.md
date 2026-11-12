@@ -13,7 +13,10 @@ recovery walkthrough.
 3. Search for a filename, sender, subject or phrase. Use **Show filters** to
    narrow the search, or use shortcuts such as `filename:invoice`,
    `from:alice`, `has:attachment`, `after:2026-01-01` and
-   `before:2026-11-12`. The results list displays up to 500 matches.
+   `before:2026-11-12`. For an exact attachment filter, use
+   `filename:"April invoice" filetype:pdf`. Both filters must match the same
+   attachment: `filename:` looks for part of its name and `filetype:` checks
+   its extension. The results list displays up to 500 matches.
 4. Select a result to read the headers and inspect the attachment details.
    **Recover** saves an attachment. **Recover .eml** saves the original message.
    Existing files at the destination are kept.
@@ -31,11 +34,11 @@ for the index. Reindexing may temporarily need space for two copies of the index
 
 ## Downloads and source
 
-[Download Liferaft v0.3.0](https://github.com/loftwah/liferaft/releases/download/v0.3.0/Liferaft-0.3.0-mac-arm64.dmg)
+[Download Liferaft v0.3.1](https://github.com/loftwah/liferaft/releases/download/v0.3.1/Liferaft-0.3.1-mac-arm64.dmg)
 for Apple silicon Macs on macOS 13.5 or later. Open the DMG, drag Liferaft into
 Applications and try opening it. The build is unnotarised. If macOS blocks it
 and you trust the download, follow Apple’s [Open Anyway instructions](https://support.apple.com/en-us/102445).
-The [release notes](https://github.com/loftwah/liferaft/releases/tag/v0.3.0)
+The [release notes](https://github.com/loftwah/liferaft/releases/tag/v0.3.1)
 include the SHA-256 checksum. The [earlier v0.1.2 release](https://github.com/loftwah/liferaft/releases/tag/v0.1.2)
 uses Electron and includes Windows and Linux installers.
 

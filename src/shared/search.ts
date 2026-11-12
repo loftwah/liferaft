@@ -1,6 +1,7 @@
 import type { SearchFilters } from './contracts'
 
 const TOKEN_PATTERN = /"([^"]+)"|(\S+)/gu
+const SEARCH_INPUT_PATTERN = /([a-z]+):"([^"]+)"(?=\s|$)|"([^"]+)"|(\S+)/giu
 const FILE_EXTENSION_PATTERN =
   /\.(pdf|png|jpe?g|docx?|xlsx?|csv|zip|eml|msg|txt)$/i
 const ATTACHMENT_INTENT_TERMS = new Set([
@@ -54,15 +55,16 @@ export function buildFtsMatchQuery(input: string): string | null {
 }
 
 export function parseSearchInput(input: string): ParsedSearchInput {
-  const tokens = [...input.matchAll(TOKEN_PATTERN)].map(
-    (match) => match[1] ?? match[2] ?? ''
-  )
   const textTokens: string[] = []
   const filters: Partial<SearchFilters> = {}
   let preferAttachments = false
 
-  for (const rawToken of tokens) {
-    const token = rawToken.trim()
+  for (const match of input.matchAll(SEARCH_INPUT_PATTERN)) {
+    const token = (match[3] ?? match[0]).trim()
+    if (match[3] !== undefined) {
+      textTokens.push(token)
+      continue
+    }
     const separator = token.indexOf(':')
     if (separator <= 0) {
       textTokens.push(token)
@@ -70,7 +72,7 @@ export function parseSearchInput(input: string): ParsedSearchInput {
     }
 
     const key = token.slice(0, separator).toLowerCase()
-    const rawValue = token.slice(separator + 1).trim()
+    const rawValue = (match[2] ?? token.slice(separator + 1)).trim()
     if (!rawValue) {
       textTokens.push(token)
       continue
@@ -103,12 +105,16 @@ export function parseSearchInput(input: string): ParsedSearchInput {
       }
     }
 
-    if (key === 'filename' || key === 'filetype') {
-      textTokens.push(rawValue)
-      preferAttachments = true
-      if (key === 'filetype') {
-        filters.hasAttachments = true
-      }
+    if (key === 'filename') {
+      filters.filenames = [...(filters.filenames ?? []), rawValue]
+      continue
+    }
+
+    if (key === 'filetype') {
+      filters.extensions = [
+        ...(filters.extensions ?? []),
+        rawValue.replace(/^\./, '')
+      ]
       continue
     }
 
