@@ -50,6 +50,7 @@ const defaultFilters: SearchFilters = {
 
 let importListenerBound = false
 let previewRequestToken = 0
+let searchRequestToken = 0
 
 function getLiferaftApi(): LiferaftApi {
   if (window.liferaft) {
@@ -97,9 +98,19 @@ export const useLiferaftStore = create<StoreState>((set, get) => ({
             event.phase === 'failed' ||
             event.phase === 'cancelled'
           ) {
-            void get().refreshArchives()
-            void get().refreshStorageInfo()
-            void get().runSearch()
+            void Promise.all([
+              get().refreshArchives(),
+              get().refreshStorageInfo()
+            ])
+              .then(() => get().runSearch())
+              .catch((error) => {
+                set({
+                  uiError: formatUiError(
+                    'Archive status could not be refreshed',
+                    error
+                  )
+                })
+              })
           }
         })
         importListenerBound = true
@@ -119,21 +130,25 @@ export const useLiferaftStore = create<StoreState>((set, get) => ({
   },
   refreshArchives: async () => {
     set({ isLoadingArchives: true })
-    const archives = await getLiferaftApi().listArchives()
-    set((state) => {
-      const selectedIds = new Set(state.filters.archiveIds)
-      const filteredIds = archives
-        .filter((archive) => selectedIds.has(archive.id))
-        .map((archive) => archive.id)
-      return {
-        archives,
-        isLoadingArchives: false,
-        filters: {
-          ...state.filters,
-          archiveIds: filteredIds
+    try {
+      const archives = await getLiferaftApi().listArchives()
+      set((state) => {
+        const selectedIds = new Set(state.filters.archiveIds)
+        const filteredIds = archives
+          .filter((archive) => selectedIds.has(archive.id))
+          .map((archive) => archive.id)
+        return {
+          archives,
+          isLoadingArchives: false,
+          filters: {
+            ...state.filters,
+            archiveIds: filteredIds
+          }
         }
-      }
-    })
+      })
+    } finally {
+      set({ isLoadingArchives: false })
+    }
   },
   refreshStorageInfo: async () => {
     const storageInfo = await getLiferaftApi().getStorageInfo()
@@ -150,48 +165,54 @@ export const useLiferaftStore = create<StoreState>((set, get) => ({
   resetFilters: () => set({ filters: defaultFilters }),
   clearUiError: () => set({ uiError: null }),
   runSearch: async () => {
+    const requestToken = ++searchRequestToken
     set({ isSearching: true })
-    const { query, filters } = get()
-    const parsed = parseSearchInput(query)
-    const mergedFilters = {
-      ...filters,
-      ...parsed.filters,
-      sender: [filters.sender, parsed.filters.sender]
-        .filter(Boolean)
-        .join(' ')
-        .trim(),
-      hasAttachments:
-        filters.hasAttachments || Boolean(parsed.filters.hasAttachments),
-      dateFrom: parsed.filters.dateFrom ?? filters.dateFrom,
-      dateTo: parsed.filters.dateTo ?? filters.dateTo
-    }
-    const results = await getLiferaftApi().searchMessages({
-      text: parsed.text,
-      filters: mergedFilters,
-      preferAttachments:
-        parsed.preferAttachments ||
-        (mergedFilters.hasAttachments && parsed.text.trim().length > 0),
-      limit: 300
-    })
-    set((state) => ({
-      results,
-      isSearching: false,
-      selectedMessage:
-        state.selectedMessage &&
-        results.some(
-          (message) => message.resultId === state.selectedMessage?.resultId
-        )
-          ? (results.find(
-              (message) => message.resultId === state.selectedMessage?.resultId
-            ) ?? null)
-          : (results[0] ?? null)
-    }))
-
-    const selected = get().selectedMessage
-    if (selected) {
-      await get().selectMessage(selected)
-    } else {
-      set({ preview: null })
+    try {
+      const { query, filters } = get()
+      const parsed = parseSearchInput(query)
+      const mergedFilters = {
+        ...filters,
+        ...parsed.filters,
+        sender: [filters.sender, parsed.filters.sender]
+          .filter(Boolean)
+          .join(' ')
+          .trim(),
+        hasAttachments:
+          filters.hasAttachments || Boolean(parsed.filters.hasAttachments),
+        dateFrom: parsed.filters.dateFrom ?? filters.dateFrom,
+        dateTo: parsed.filters.dateTo ?? filters.dateTo
+      }
+      const results = await getLiferaftApi().searchMessages({
+        text: parsed.text,
+        filters: mergedFilters,
+        preferAttachments:
+          parsed.preferAttachments ||
+          (mergedFilters.hasAttachments && parsed.text.trim().length > 0),
+        limit: 300
+      })
+      if (requestToken !== searchRequestToken) return
+      set((state) => ({
+        results,
+        isSearching: false,
+        selectedMessage:
+          results.find(
+            (row) => row.resultId === state.selectedMessage?.resultId
+          ) ??
+          results[0] ??
+          null
+      }))
+      await get().selectMessage(get().selectedMessage)
+    } catch (error) {
+      if (requestToken !== searchRequestToken) return
+      ++previewRequestToken
+      set({
+        results: [],
+        selectedMessage: null,
+        preview: null,
+        isSearching: false,
+        isLoadingPreview: false,
+        uiError: formatUiError('Search could not finish', error)
+      })
     }
   },
   selectMessage: async (message) => {
@@ -201,23 +222,23 @@ export const useLiferaftStore = create<StoreState>((set, get) => ({
       preview: null,
       isLoadingPreview: Boolean(message)
     })
-
-    if (!message) {
-      return
+    if (!message) return
+    try {
+      const preview = await getLiferaftApi().loadMessagePreview(
+        message.archiveId,
+        message.id,
+        message.indexRevision
+      )
+      if (requestToken !== previewRequestToken) return
+      set({ preview, isLoadingPreview: false })
+    } catch (error) {
+      if (requestToken !== previewRequestToken) return
+      set({
+        preview: null,
+        isLoadingPreview: false,
+        uiError: formatUiError('The message could not be opened', error)
+      })
     }
-
-    const preview = await getLiferaftApi().loadMessagePreview(
-      message.archiveId,
-      message.id
-    )
-    if (requestToken !== previewRequestToken) {
-      return
-    }
-
-    set({
-      preview,
-      isLoadingPreview: false
-    })
   },
   beginImport: async () => {
     set({ uiError: null })
@@ -238,7 +259,11 @@ export const useLiferaftStore = create<StoreState>((set, get) => ({
     }
   },
   cancelImport: async (archiveId) => {
-    await getLiferaftApi().cancelImport(archiveId)
+    try {
+      await getLiferaftApi().cancelImport(archiveId)
+    } catch (error) {
+      set({ uiError: formatUiError('Indexing could not be cancelled', error) })
+    }
   },
   deleteArchiveIndex: async (archiveId) => {
     set({ isMutatingArchives: true, uiError: null })

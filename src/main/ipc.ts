@@ -7,11 +7,18 @@ import type {
   OpenDialogOptions,
   UtilityProcess
 } from 'electron'
-import type { ArchiveSummary, ImportProgressEvent } from '@shared/contracts'
+import type {
+  AgentAccessStatus,
+  ArchiveSummary,
+  ImportProgressEvent
+} from '@shared/contracts'
+import { getArchiveRecoveryIdentity } from '@shared/recovery-files'
+import { AgentAccessStore } from '../mcp/access'
 import { ArchiveDatabasePool } from './archive-db'
 import { CatalogStore } from './catalog'
 import {
   BrowserWindow,
+  app,
   dialog,
   ipcMain,
   shell,
@@ -20,39 +27,199 @@ import {
 import { ExportService } from './exporter'
 import { MessagePreviewService } from './message-preview'
 import { SearchService } from './search'
+import { observeImportProcess } from './import-lifecycle'
 
 interface ActiveImport {
   archive: ArchiveSummary
   process: UtilityProcess
+  lifetime: ReturnType<typeof observeImportProcess>
+  stopping: boolean
 }
 
 async function removeSqliteArtifacts(dbPath: string): Promise<void> {
-  await Promise.allSettled([
-    rm(dbPath, { force: true }),
+  // If the database is still locked, preserve its journal for a later retry.
+  await rm(dbPath, { force: true })
+  const results = await Promise.allSettled([
     rm(`${dbPath}-wal`, { force: true }),
     rm(`${dbPath}-shm`, { force: true })
   ])
+  if (results.some((result) => result.status === 'rejected')) {
+    throw new Error(
+      'Some local index files could not be removed. Close other Liferaft agents and try again.'
+    )
+  }
 }
 
 export function registerIpc(
-  mainWindow: ElectronBrowserWindow,
+  getMainWindow: () => ElectronBrowserWindow | null,
   catalog: CatalogStore,
-  pool: ArchiveDatabasePool
-): () => void {
+  pool: ArchiveDatabasePool,
+  access: AgentAccessStore
+): () => Promise<void> {
   const search = new SearchService(catalog, pool)
   const preview = new MessagePreviewService(catalog, pool)
   const exporter = new ExportService(catalog, pool)
   const activeImports = new Map<string, ActiveImport>()
+  const cleanupJobs = new Map<string, Promise<void>>()
+  const inflightIpc = new Set<Promise<unknown>>()
+  const selectedPaths = new Set<string>()
+  let disposing = false
+  const getWindow = () => {
+    const window = getMainWindow()
+    if (!window || window.isDestroyed())
+      throw new Error('Open Liferaft to continue.')
+    return window
+  }
+  const handle = (
+    channel: string,
+    handler: Parameters<typeof ipcMain.handle>[1]
+  ) => {
+    ipcMain.handle(channel, (event, ...args) => {
+      const window = getWindow()
+      if (disposing)
+        throw new Error(
+          'Liferaft is finishing its current work. Try again shortly.'
+        )
+      if (
+        event.sender !== window.webContents ||
+        event.senderFrame !== window.webContents.mainFrame
+      ) {
+        throw new Error('This request did not come from the Liferaft window.')
+      }
+      const operation = Promise.resolve(handler(event, ...args))
+      inflightIpc.add(operation)
+      return operation.finally(() => inflightIpc.delete(operation))
+    })
+  }
+
+  const accessStatus = (): AgentAccessStatus => {
+    const grant = access.read()
+    return {
+      enabled: Boolean(grant),
+      archiveIds: grant?.archiveIds ?? [],
+      exportDirectories:
+        grant?.exportDirectories.map(({ id, name, path }) => ({
+          id,
+          name,
+          path
+        })) ?? [],
+      command: app.getPath('exe'),
+      args: app.isPackaged ? ['--mcp'] : [app.getAppPath(), '--mcp']
+    }
+  }
+
+  handle('liferaft:agent-access', accessStatus)
+  handle(
+    'liferaft:enable-agent-access',
+    async (_event, archiveIds: unknown) => {
+      if (
+        !Array.isArray(archiveIds) ||
+        archiveIds.length < 1 ||
+        archiveIds.length > 32 ||
+        archiveIds.some((id) => typeof id !== 'string')
+      ) {
+        throw new Error('Choose between 1 and 32 indexed archives.')
+      }
+      const ids = [...new Set(archiveIds as string[])]
+      const archives = ids.map((id) => {
+        const archive = catalog.getArchiveById(id)
+        if (!archive || archive.status !== 'ready')
+          throw new Error('Wait for the selected archives to finish indexing.')
+        getArchiveRecoveryIdentity(pool.getDatabase(archive))
+        return archive
+      })
+      const folder = await dialog.showOpenDialog(getWindow(), {
+        title: 'Choose the agent recovery folder',
+        properties: ['openDirectory', 'createDirectory']
+      })
+      if (folder.canceled || !folder.filePaths[0]) return accessStatus()
+      const confirm = await dialog.showMessageBox(getWindow(), {
+        type: 'question',
+        title: 'Enable agent access',
+        message:
+          'Allow your agent to read these archives and recover selected files?',
+        detail: `Archives: ${archives.map((archive) => archive.name).join(', ')}\n\nExport folder: ${folder.filePaths[0]}\n\nYour agent may send returned messages and snippets to its model provider. Archived text cannot grant extra access. Existing files are never overwritten. You can revoke access in Liferaft.`,
+        buttons: ['Cancel', 'Enable access'],
+        defaultId: 0,
+        cancelId: 0,
+        noLink: true
+      })
+      if (confirm.response !== 1) return accessStatus()
+      // A native dialog can stay open while an import finishes or an index changes.
+      for (const archive of archives) {
+        const current = catalog.getArchiveById(archive.id)
+        if (!current || current.status !== 'ready')
+          throw new Error(
+            'The archive selection changed. Review it and try again.'
+          )
+        getArchiveRecoveryIdentity(pool.getDatabase(current))
+      }
+      access.grant({
+        archiveIds: ids,
+        exportDirectories: [folder.filePaths[0]],
+        acknowledgeCloudSharing: true
+      })
+      return accessStatus()
+    }
+  )
+  handle('liferaft:revoke-agent-access', () => {
+    access.revoke()
+    return accessStatus()
+  })
 
   const broadcastProgress = (event: ImportProgressEvent) => {
-    if (mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) {
+    const mainWindow = getMainWindow()
+    if (
+      !mainWindow ||
+      mainWindow.isDestroyed() ||
+      mainWindow.webContents.isDestroyed()
+    ) {
       return
     }
 
     mainWindow.webContents.send('liferaft:import-progress', event)
   }
 
-  ipcMain.handle('liferaft:select-mbox-files', async () => {
+  const rememberCleanupFailure = (archive: ArchiveSummary, error: unknown) => {
+    const message =
+      error instanceof Error &&
+      error.message.includes('importer has not stopped')
+        ? error.message
+        : 'The local index could not be removed. Close other Liferaft agents and try again. The original archive was not deleted.'
+    catalog.upsertArchive({ ...archive, status: 'failed', lastError: message })
+    broadcastProgress({
+      archiveId: archive.id,
+      phase: 'failed',
+      bytesProcessed: 0,
+      totalBytes: 0,
+      messagesProcessed: archive.messageCount,
+      attachmentsProcessed: archive.attachmentCount,
+      etaSeconds: null,
+      currentFile: archive.sourcePath,
+      error: message
+    })
+  }
+
+  const removeArchiveIndex = (archive: ArchiveSummary): Promise<void> => {
+    const existing = cleanupJobs.get(archive.id)
+    if (existing) return existing
+    const job = (async () => {
+      const active = activeImports.get(archive.id)
+      if (active) {
+        active.stopping = true
+        await active.lifetime.stop()
+      }
+      pool.closeArchive(archive.id)
+      await removeSqliteArtifacts(archive.dbPath)
+      catalog.deleteArchive(archive.id)
+      if (activeImports.get(archive.id) === active)
+        activeImports.delete(archive.id)
+    })().finally(() => cleanupJobs.delete(archive.id))
+    cleanupJobs.set(archive.id, job)
+    return job
+  }
+
+  handle('liferaft:select-mbox-files', async () => {
     const owner =
       BrowserWindow.getFocusedWindow() ??
       BrowserWindow.getAllWindows()[0] ??
@@ -76,18 +243,45 @@ export function registerIpc(
       ? await dialog.showOpenDialog(owner, options)
       : await dialog.showOpenDialog(options)
 
-    return response.canceled ? [] : response.filePaths
+    if (response.canceled) return []
+    const paths = response.filePaths.map((filePath) =>
+      fs.realpathSync(filePath)
+    )
+    for (const filePath of paths) selectedPaths.add(filePath)
+    return paths
   })
 
-  ipcMain.handle('liferaft:list-archives', () => catalog.listArchives())
-  ipcMain.handle('liferaft:get-storage-info', () => catalog.getStorageSummary())
+  handle('liferaft:list-archives', () => catalog.listArchives())
+  handle('liferaft:get-storage-info', () => catalog.getStorageSummary())
 
-  ipcMain.handle('liferaft:start-import', async (_event, paths: string[]) => {
+  handle('liferaft:start-import', async (_event, paths: string[]) => {
+    if (
+      !Array.isArray(paths) ||
+      paths.length > 32 ||
+      paths.some((entry) => typeof entry !== 'string')
+    ) {
+      throw new Error('Choose up to 32 archive files using Import .mbox.')
+    }
+    for (const sourcePath of paths) {
+      if (
+        !selectedPaths.has(sourcePath) &&
+        !catalog.getArchiveBySourcePath(sourcePath)
+      ) {
+        throw new Error(
+          'Choose the archive using Import .mbox before indexing it.'
+        )
+      }
+    }
     const archives: ArchiveSummary[] = []
 
     for (const sourcePath of paths) {
       const existing = catalog.getArchiveBySourcePath(sourcePath)
       if (existing && activeImports.has(existing.id)) {
+        if (activeImports.get(existing.id)?.stopping) {
+          throw new Error(
+            'The previous import is still stopping. Remove its local index before trying again.'
+          )
+        }
         archives.push(existing)
         continue
       }
@@ -122,15 +316,21 @@ export function registerIpc(
       )
       activeImports.set(archive.id, {
         archive,
-        process: child
+        process: child,
+        lifetime: observeImportProcess(child),
+        stopping: false
       })
 
       child.on('message', async (message: ImportProgressEvent) => {
-        broadcastProgress(message)
         const active = activeImports.get(message.archiveId)
-        if (!active) {
+        if (
+          message.archiveId !== archive.id ||
+          active?.process !== child ||
+          active.stopping
+        ) {
           return
         }
+        if (message.phase !== 'cancelled') broadcastProgress(message)
 
         if (message.phase === 'completed') {
           catalog.upsertArchive({
@@ -158,20 +358,18 @@ export function registerIpc(
           activeImports.delete(message.archiveId)
           pool.closeArchive(message.archiveId)
         } else if (message.phase === 'cancelled') {
-          activeImports.delete(message.archiveId)
-          pool.closeArchive(message.archiveId)
-          catalog.deleteArchive(message.archiveId)
-          await removeSqliteArtifacts(active.archive.dbPath)
+          try {
+            await removeArchiveIndex(active.archive)
+            broadcastProgress(message)
+          } catch (error) {
+            rememberCleanupFailure(active.archive, error)
+          }
         }
       })
 
-      child.once('exit', (code) => {
+      child.once('exit', () => {
         const active = activeImports.get(archive.id)
-        if (!active) {
-          return
-        }
-
-        if (code === 0) {
+        if (active?.process !== child || active.stopping) {
           return
         }
 
@@ -215,75 +413,130 @@ export function registerIpc(
     return archives
   })
 
-  ipcMain.handle(
-    'liferaft:cancel-import',
-    async (_event, archiveId: string) => {
-      const active = activeImports.get(archiveId)
-      if (!active) {
-        return
-      }
-
-      active.process.postMessage({
-        type: 'cancel'
-      })
+  handle('liferaft:cancel-import', async (_event, archiveId: string) => {
+    const active = activeImports.get(archiveId)
+    if (!active || active.stopping) {
+      return
     }
-  )
 
-  ipcMain.handle(
-    'liferaft:delete-archive-index',
-    async (_event, archiveId: string) => {
-      const active = activeImports.get(archiveId)
-      if (active) {
-        active.process.kill()
-        activeImports.delete(archiveId)
-      }
+    active.process.postMessage({
+      type: 'cancel'
+    })
+  })
 
-      const archive = catalog.getArchiveById(archiveId)
-      if (!archive) {
-        return
-      }
-
-      pool.closeArchive(archiveId)
-      catalog.deleteArchive(archiveId)
-      await removeSqliteArtifacts(archive.dbPath)
+  handle('liferaft:delete-archive-index', async (_event, archiveId: string) => {
+    const archive = catalog.getArchiveById(archiveId)
+    if (!archive) {
+      return
     }
-  )
 
-  ipcMain.handle('liferaft:search', async (_event, query) =>
-    search.search(query)
-  )
-  ipcMain.handle(
+    try {
+      await removeArchiveIndex(archive)
+    } catch (error) {
+      rememberCleanupFailure(archive, error)
+      throw new Error(
+        'The local index could not be removed. Close other Liferaft agents and try again.'
+      )
+    }
+  })
+
+  handle('liferaft:search', async (_event, query) => search.search(query))
+  handle(
     'liferaft:load-message-preview',
-    async (_event, archiveId: string, messageId: number) =>
-      preview.loadPreview(archiveId, messageId)
+    async (
+      _event,
+      archiveId: string,
+      messageId: number,
+      indexRevision: unknown
+    ) =>
+      preview.loadPreview(archiveId, messageId, {
+        expectedIndexRevision: requireIndexRevision(indexRevision)
+      })
   )
-  ipcMain.handle(
+  handle(
     'liferaft:export-attachment',
-    async (_event, archiveId: string, attachmentId: number) =>
-      exporter.exportAttachment(mainWindow, archiveId, attachmentId)
+    async (
+      _event,
+      archiveId: string,
+      attachmentId: number,
+      indexRevision: unknown
+    ) =>
+      exporter.exportAttachment(
+        getWindow(),
+        archiveId,
+        attachmentId,
+        requireIndexRevision(indexRevision)
+      )
   )
-  ipcMain.handle(
+  handle(
     'liferaft:export-all-attachments',
-    async (_event, archiveId: string, messageId: number) =>
-      exporter.exportAllAttachments(mainWindow, archiveId, messageId)
+    async (
+      _event,
+      archiveId: string,
+      messageId: number,
+      indexRevision: unknown
+    ) =>
+      exporter.exportAllAttachments(
+        getWindow(),
+        archiveId,
+        messageId,
+        requireIndexRevision(indexRevision)
+      )
   )
-  ipcMain.handle(
+  handle(
     'liferaft:export-message',
-    async (_event, archiveId: string, messageId: number) =>
-      exporter.exportMessage(mainWindow, archiveId, messageId)
+    async (
+      _event,
+      archiveId: string,
+      messageId: number,
+      indexRevision: unknown
+    ) =>
+      exporter.exportMessage(
+        getWindow(),
+        archiveId,
+        messageId,
+        requireIndexRevision(indexRevision)
+      )
   )
-  ipcMain.handle('liferaft:reveal-path', async (_event, targetPath: string) => {
+  handle('liferaft:reveal-path', async (_event, targetPath: string) => {
     shell.showItemInFolder(targetPath)
   })
 
-  return () => {
-    for (const active of activeImports.values()) {
-      active.process.kill()
-      pool.closeArchive(active.archive.id)
-      catalog.deleteArchive(active.archive.id)
-      if (fs.existsSync(active.archive.dbPath)) {
-        void removeSqliteArtifacts(active.archive.dbPath)
+  return async () => {
+    disposing = true
+    const notifyShutdown = (message: string | null) => {
+      const window = getMainWindow()
+      if (
+        window &&
+        !window.isDestroyed() &&
+        !window.webContents.isDestroyed()
+      ) {
+        window.webContents.send('liferaft:shutdown-pending', message)
       }
+    }
+    try {
+      // Let exports remove their own temporary files, and let existing native
+      // choosers settle, before their catalogue and database handles are closed.
+      if (inflightIpc.size > 0) {
+        notifyShutdown(
+          'Finishing current work before quitting. Finish or cancel any open file chooser to continue.'
+        )
+      }
+      await Promise.allSettled([...inflightIpc])
+      notifyShutdown(null)
+      for (const active of [...activeImports.values()]) {
+        try {
+          await removeArchiveIndex(active.archive)
+        } catch (error) {
+          rememberCleanupFailure(active.archive, error)
+          throw error
+        }
+      }
+      await Promise.all([...cleanupJobs.values()])
+    } catch (error) {
+      disposing = false
+      notifyShutdown(null)
+      throw error
     }
 
     activeImports.clear()
@@ -299,5 +552,20 @@ export function registerIpc(
     ipcMain.removeHandler('liferaft:export-all-attachments')
     ipcMain.removeHandler('liferaft:export-message')
     ipcMain.removeHandler('liferaft:reveal-path')
+    ipcMain.removeHandler('liferaft:agent-access')
+    ipcMain.removeHandler('liferaft:enable-agent-access')
+    ipcMain.removeHandler('liferaft:revoke-agent-access')
   }
+}
+
+function requireIndexRevision(value: unknown): string {
+  if (
+    typeof value !== 'string' ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      value
+    )
+  ) {
+    throw new Error('This selection is out of date. Search the archive again.')
+  }
+  return value
 }

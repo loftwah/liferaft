@@ -2,50 +2,37 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ELECTRON_PKG_JSON="$ROOT_DIR/node_modules/electron/package.json"
-ELECTRON_DIR="$ROOT_DIR/node_modules/electron"
-DIST_DIR="$ELECTRON_DIR/dist"
-PATH_FILE="$ELECTRON_DIR/path.txt"
-
-if [[ ! -f "$ELECTRON_PKG_JSON" ]]; then
-  echo "electron is not installed yet. Run 'bun install --ignore-scripts' first." >&2
-  exit 1
-fi
+cd "$ROOT_DIR"
 
 if ! command -v node >/dev/null 2>&1; then
-  echo "node is required. In this repo, use: nix-shell -p nodejs python3 pkg-config --run './scripts/bootstrap-electron-runtime.sh'" >&2
+  echo "Node.js 24 is required. Install it, then run 'bun install --frozen-lockfile'." >&2
   exit 1
 fi
 
-ELECTRON_VERSION="$(node -p "require('$ELECTRON_PKG_JSON').version")"
-ARCH="$(uname -m)"
-PLATFORM="darwin"
+if [[ ! -f node_modules/electron/install.js ]]; then
+  echo "Install the pinned dependencies first: bun install --frozen-lockfile --ignore-scripts" >&2
+  exit 1
+fi
 
-case "$ARCH" in
-  arm64|aarch64)
-    ELECTRON_ARCH="arm64"
-    ;;
-  x86_64)
-    ELECTRON_ARCH="x64"
-    ;;
-  *)
-    echo "Unsupported architecture: $ARCH" >&2
-    exit 1
-    ;;
-esac
+node - <<'NODE'
+if (Number(process.versions.node.split('.')[0]) !== 24) {
+  console.error(`Node.js 24 is required; found ${process.versions.node}.`)
+  process.exit(1)
+}
+console.log(`Preparing Electron for ${process.platform}-${process.arch}`)
+NODE
 
-ZIP_NAME="electron-v${ELECTRON_VERSION}-${PLATFORM}-${ELECTRON_ARCH}.zip"
-DOWNLOAD_URL="https://github.com/electron/electron/releases/download/v${ELECTRON_VERSION}/${ZIP_NAME}"
-TMP_ZIP="${TMPDIR:-/tmp}/${ZIP_NAME}"
+# Electron's installer selects the host platform, verifies the download and
+# manages its cache. Use the locked local package; do not download an unpinned
+# rebuild tool or delete an existing runtime before a replacement is available.
+node node_modules/electron/install.js
 
-echo "Downloading Electron ${ELECTRON_VERSION} for ${PLATFORM}-${ELECTRON_ARCH}"
-rm -rf "$DIST_DIR"
-mkdir -p "$DIST_DIR"
-curl -L "$DOWNLOAD_URL" -o "$TMP_ZIP"
-unzip -q -o "$TMP_ZIP" -d "$DIST_DIR"
-printf 'Electron.app/Contents/MacOS/Electron' > "$PATH_FILE"
-
-echo "Rebuilding better-sqlite3 for Electron"
-npx electron-rebuild -f -w better-sqlite3
-
-echo "Electron runtime bootstrapped."
+# better-sqlite3 13 uses Node-API prebuilds shared by Node and Electron. This
+# verifies the host binding; installed Electron acceptance remains a separate check.
+node - <<'NODE'
+const Database = require('better-sqlite3')
+const database = new Database(':memory:')
+const version = database.prepare('select sqlite_version() as version').get().version
+database.close()
+console.log(`Electron runtime prepared; host SQLite ${version} loaded.`)
+NODE

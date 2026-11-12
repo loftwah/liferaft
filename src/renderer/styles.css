@@ -33,8 +33,101 @@ body {
 }
 
 button,
-input {
+input,
+select,
+textarea {
   font: inherit;
+}
+
+.agent-dialog {
+  width: min(620px, calc(100vw - 64px));
+  max-height: calc(100vh - 64px);
+  overflow: auto;
+  padding: 24px;
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  background: var(--panel);
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.agent-dialog::backdrop {
+  background: rgb(32 40 58 / 40%);
+}
+
+.agent-dialog h2 {
+  font-size: 1.25rem;
+  margin: 0;
+}
+
+.agent-sharing-note {
+  color: var(--text);
+}
+
+.agent-archives {
+  margin: 20px 0;
+  padding: 12px;
+  border: 1px solid var(--line-strong);
+  max-height: 200px;
+  overflow: auto;
+}
+
+.agent-archive-choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  overflow-wrap: anywhere;
+}
+
+.agent-archive-choice input {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+
+.agent-path,
+.export-notice {
+  overflow-wrap: anywhere;
+}
+
+.agent-connection summary {
+  cursor: pointer;
+  padding: 8px 0;
+  color: var(--accent);
+}
+
+.agent-connection label,
+.agent-connection textarea {
+  display: block;
+  margin-top: 12px;
+}
+
+.agent-connection select,
+.agent-connection textarea {
+  width: 100%;
+  box-sizing: border-box;
+  color: var(--text);
+  background: var(--panel-strong);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  padding: 10px;
+}
+
+.agent-connection textarea {
+  font-family: 'IBM Plex Mono', 'SFMono-Regular', monospace;
+  font-size: 0.8125rem;
+  resize: vertical;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
 }
 
 button {

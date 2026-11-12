@@ -1,6 +1,6 @@
 ---
 name: woodhouse-design
-description: "Use for meaningful Liferaft UI/design work or Impeccable setup: product screens, forms, navigation, onboarding, errors, responsive layout, accessibility and polish. Requires actual upstream skill use and rendered proof; not a backend-only design campaign."
+description: 'Use for meaningful Liferaft UI/design work or Impeccable setup: product screens, forms, navigation, onboarding, errors, responsive layout, accessibility and polish. Requires actual upstream skill use and rendered proof; not a backend-only design campaign.'
 ---
 
 # Required design entry path — Liferaft

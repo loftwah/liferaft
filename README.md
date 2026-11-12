@@ -2,157 +2,169 @@
 
 ![Liferaft overview](./og-image.jpg)
 
-Liferaft is a local, read-only Electron desktop app for opening large `.mbox` archives, indexing them locally, searching them quickly, previewing messages in a familiar three-pane layout, and exporting attachments or selected messages for recovery work.
+Liferaft helps you find messages and recover attachments from large `.mbox`
+archives. It indexes mail locally, searches it with SQLite FTS5, and shows the
+selected message in a three-pane desktop interface. Recovery creates a copy;
+the original archive stays read-only.
 
-It is intentionally not an email client. There is no account login, sync, compose, send, reply, or remote access path.
+**Current source version: 0.2.0.** These source changes have not published a new
+installer. [Published downloads](https://github.com/loftwah/liferaft/releases)
+retain their own release versions. See the [verification ledger](docs/verification.md)
+for what this update actually checked and the remaining desktop acceptance work.
 
 ## What it does
 
-- Imports one or more `.mbox` archives into per-archive SQLite databases
-- Streams the source file during import inside an Electron utility process
-- Indexes message metadata and body text with SQLite FTS5
-- Stores message byte ranges and attachment MIME-part offsets for targeted export
-- Searches subject, attachment names, sender, recipients, and body with ranking
-- Shows a three-pane recovery-oriented UI with progress, filters, result list, and preview
-- Exports:
-  - a single attachment
-  - all attachments from a message
-  - a message as `.eml`
+- Import one or more archives and index them in a background utility process.
+- Search subjects, senders, recipients, message text and attachment names.
+- Filter results and inspect the source message before recovering a file.
+- Export one attachment, all attachments from a message, or a selected `.eml`.
+- Optionally let a local MCP agent recover files from explicitly selected archives
+  into an approved folder.
 
-## Tech stack
+Desktop indexing and recovery need no account, API key or hosted service.
+**Optional agent access has a separate sharing boundary:** your chosen agent may
+send requested message details to its model provider. Read the notice in
+**Agent access** before enabling it. See [agent recovery](docs/AGENT_RECOVERY.md).
 
-- Electron 41
-- React 19 + TypeScript
-- Vite + electron-vite
-- Tailwind CSS v4 + `@tailwindcss/vite`
-- SQLite FTS5
-- `better-sqlite3`
-- `mailparser`
-- `react-virtuoso`
-- `zustand`
+## Run from source
 
-## Run locally
+Use **Node.js 24.15 or newer within Node 24**, and **Bun 1.4.4**. This update was
+checked with Node 24.22.1. Install those tools using their official instructions,
+then run these commands from the repository:
 
-This repository uses Bun for scripts, but native modules and the Electron binary are most reliable from a Node toolchain. In this environment, the easiest path is:
-
-```bash
-bun install --ignore-scripts
-nix-shell -p nodejs python3 pkg-config --run './scripts/bootstrap-electron-runtime.sh'
+```sh
+bun install --frozen-lockfile
+bun run check
 bun run dev
 ```
 
-To launch the compiled app directly:
+The install step uses the pinned Electron installer, which selects the correct
+host platform and architecture. The lockfile fixes dependency resolution.
 
-```bash
-bun run build
-bun run start
-```
+To build and open the compiled app:
 
-Or do both in one command:
-
-```bash
+```sh
 bun run start:built
 ```
 
-To create local installer artifacts:
+To open an existing build without rebuilding it:
 
-```bash
+```sh
+bun run start
+```
+
+For source checks without downloading Electron immediately:
+
+```sh
+bun install --frozen-lockfile --ignore-scripts
+bun run check
+bun run build
+# Download the desktop runtime when ready to use it:
+bun run setup:desktop
+```
+
+The portable [Bash bootstrap](scripts/bootstrap-electron-runtime.sh) is an
+alternative to `setup:desktop` and also checks the host SQLite binding. No Nix
+shell or unpinned rebuild download is required. Exact versions and native
+packaging decisions are in [toolchain.md](docs/toolchain.md).
+
+## Check a fictional recovery
+
+Create a temporary archive containing one fictional invoice and a valid PDF:
+
+```sh
+bun run scripts/create-recovery-fixture.ts
+bun run start:built
+```
+
+The command prints the MBOX path, an empty recovery folder, the expected PDF and
+its SHA-256 digest. Import that archive, wait for indexing, search for
+`Alice invoice`, inspect the message, and export `invoice.pdf` into the printed
+folder. Open the recovered PDF and compare its digest with the expected value.
+The fixture contains no private mail and does not overwrite existing files.
+
+For the optional agent journey, select only that archive and folder in **Agent
+access**, acknowledge the sharing notice, and use the configuration shown there
+in your local client. Ask it to find Alice's invoice, show its source and recover
+its PDF. Revoke access afterwards and confirm that further calls are denied.
+The [acceptance steps](docs/verification.md#local-acceptance-steps) cover
+cancellation, stale selections and removing the temporary index safely.
+
+### Existing archives need one reindex
+
+Indexes created by older versions lack the source-file identity and index
+revision now used to prevent stale selections from recovering the wrong item.
+Use **Reindex** once for each existing archive and wait for it to finish before
+previewing or exporting. Reindexing rebuilds Liferaft's replaceable local index;
+it leaves the original MBOX in place. Select the result again after a reindex.
+
+## Tests and local packages
+
+```sh
+bun run test
+bun run test:integration
+bun run typecheck
+bun run format:check
+bun run build
+```
+
+`bun run check` runs formatting, both test suites and type checking. The Node
+integration suite uses the actual native SQLite dependency; Bun's unit suite is
+not the only database check. Current verification results and their limits are
+recorded in [verification.md](docs/verification.md) and the associated PR.
+
+To create local installer artefacts for the host platform:
+
+```sh
 bun run dist
 ```
 
-Packaged builds will be written to `release/`.
+This builds and packages with publication disabled. Output goes to `release/`.
+macOS builds require macOS 13 or later. Check the actual installed package on
+each intended OS and architecture; a successful build does not establish native
+dialogs, keyboard access, screen-reader use or the complete recovery journey.
 
-## Test
+The package allowlist includes the built application, its manifest, licence and
+production dependencies. Personal archives, recovered exports, test fixtures,
+agent configuration and development tools stay outside the package.
 
-```bash
-bun run format
-bun run format:check
-bun test
-bun run typecheck
-```
+## Release status
 
-## GitHub releases
+The existing [release workflow](.github/workflows/release.yml) handles `v*` tag
+pushes and manual dispatch. Its Node and Bun pins match this source update, but
+it was not run as part of this work. Branch or PR activity is not release proof.
 
-This repository is configured to publish downloadable desktop builds through GitHub Releases.
+Establish installed desktop acceptance before publishing. Release tags, workflow
+dispatch and `bun run release` publish artefacts; `bun run dist` is the local
+packaging path. Follow the owner's established release authority.
+Signing and notarisation remain release concerns. Preserve operating-system
+security checks; the old quarantine-clearing install script is not part of the
+recommended setup.
 
-Tag format:
+## Architecture and working notes
 
-- Release tags must start with `v` and use semantic versioning: `vMAJOR.MINOR.PATCH`
-- Examples: `v0.1.0`, `v0.2.3`, `v1.0.0`
-- The GitHub Actions release workflow only triggers for tags matching `v*`
+| Location       | Responsibility                                                                 |
+| -------------- | ------------------------------------------------------------------------------ |
+| `src/main`     | Desktop lifecycle, catalogue, search, preview, export and validated IPC.       |
+| `src/utility`  | Streamed import, MIME parsing, attachment offsets and indexing.                |
+| `src/preload`  | Narrow, typed bridge between the renderer and main process.                    |
+| `src/renderer` | Recovery interface, passive email preview and explicit agent permissions.      |
+| `src/mcp`      | Optional local stdio server, archive/folder grants and bounded recovery tools. |
+| `src/shared`   | Contracts, schema, search and MIME helpers shared by those paths.              |
 
-Release flow:
+The toolchain is Electron 45, React 19, TypeScript 7, Vite 8, Tailwind 4 and
+SQLite FTS5 through `better-sqlite3` 13. The importer streams archives but still
+buffers an individual message and rejects individual messages over 64 MiB.
+Preview reads are bounded. Exports use recorded byte ranges and transfer
+encoding, validate source/index identity, and publish without overwriting an
+existing file. Passive HTML preview strips active content and external requests
+remain blocked.
 
-1. Update `package.json` to the version you want to ship.
-2. Commit the release changes.
-3. Trigger the release in one of two ways: push a matching git tag such as `v0.2.0`, or run the `Release` workflow manually from the GitHub Actions tab and enter the tag you want created.
-4. GitHub Actions will build macOS, Windows, and Linux packages and attach them to the GitHub release for that tag.
+[Rune was assessed](docs/rune-assessment.md). It is a Rust GPU UI framework with
+an experimental WASM/WebGPU target, not a drop-in React library. No Rune runtime
+or renderer is included in this update; the assessment records the compatibility
+boundary and the smallest useful follow-up experiment.
 
-Example:
-
-```bash
-git tag v0.2.0
-git push origin main --follow-tags
-```
-
-Notes:
-
-- The workflow publishes unsigned builds. macOS Gatekeeper and Windows SmartScreen may warn until code signing is added.
-- Release artifacts are produced with `electron-builder` and uploaded from `.github/workflows/release.yml`.
-- Manual runs of the `Release` workflow create the requested `v*` tag on the selected branch or commit, then the normal tag-based release build runs automatically.
-
-## Opening unsigned builds
-
-The current GitHub Release artifacts are unsigned. That is normal for an early-stage desktop utility, but users may need to confirm the first launch manually.
-
-macOS:
-
-- Liferaft publishes Apple Silicon macOS builds today.
-- The easiest install path is the GitHub-hosted install script, which downloads the latest mac release, copies it into `/Applications`, and clears the quarantine flag:
-
-```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/loftwah/liferaft/main/scripts/install-macos.sh)"
-```
-
-- macOS may block the app on first launch because the build is not notarized.
-- If Finder says Liferaft cannot be opened, right-click the app and choose `Open`.
-- If macOS still blocks it, open `System Settings` > `Privacy & Security` and allow the app to run.
-- If Gatekeeper still rejects the app after you move it to `/Applications`, remove the quarantine flag and open it again:
-
-```bash
-xattr -dr com.apple.quarantine "/Applications/Liferaft.app"
-```
-
-Windows:
-
-- If SmartScreen warns before launch, click `More info` and then `Run anyway`.
-
-Linux:
-
-- Linux builds typically do not require an additional trust step beyond making the download executable when needed.
-
-Code signing is worth adding later if Liferaft is distributed broadly or non-technical users are expected to install it often. For now, most developers would ship unsigned builds and document the warning clearly.
-
-## Architecture
-
-- `src/main`
-  - window creation
-  - catalog DB
-  - archive search, preview, export, and strict IPC
-- `src/utility`
-  - streamed MBOX splitting
-  - message parsing
-  - attachment offset extraction
-  - archive indexing
-- `src/preload`
-  - narrow renderer bridge
-- `src/renderer`
-  - read-only UI only
-
-## Notes and tradeoffs
-
-- The archive importer streams the full mbox file and never loads the full archive into memory.
-- Message parsing currently buffers one message at a time inside the utility process. That keeps archive-scale memory bounded, but a single extremely large message can still be expensive.
-- Attachment export uses stored MIME-part body offsets and transfer-encoding metadata, so it does not need to reparse the full message.
-- Message preview reparses the selected message on demand to avoid duplicating full message bodies in SQLite.
-- HTML preview is sanitized in the renderer and external requests are blocked by CSP.
+For changes, start with [AGENTS.md](AGENTS.md), then read the relevant
+[recovery contract](docs/AGENT_RECOVERY.md), [copy guidance](docs/VOICE.md) or
+[toolchain notes](docs/toolchain.md).

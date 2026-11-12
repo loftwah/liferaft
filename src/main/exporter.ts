@@ -1,14 +1,20 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { PassThrough, Transform } from 'node:stream'
-import { pipeline } from 'node:stream/promises'
 import type { BrowserWindow as ElectronBrowserWindow } from 'electron'
 import type { ExportResult } from '@shared/contracts'
 import { buildSafeFilename } from '@shared/filenames'
 import { MboxRdUnescapeTransform } from '@shared/mbox'
-import { ArchiveDatabasePool } from './archive-db'
-import { CatalogStore } from './catalog'
-import { dialog, shell } from './electron-runtime'
+import {
+  getArchiveRecoveryIdentity,
+  sameSource,
+  writeArchiveRangeAtomically,
+  type ArchiveExportOptions
+} from '@shared/recovery-files'
+import { decoderForTransferEncoding } from '@shared/transfer-decoder'
+import type { ArchiveDatabasePool } from './archive-db'
+import type { CatalogStore } from './catalog'
+
+export type { ArchiveExportOptions } from '@shared/recovery-files'
 
 interface AttachmentExportRow {
   id: number
@@ -36,8 +42,12 @@ export class ExportService {
   async exportAttachment(
     window: ElectronBrowserWindow,
     archiveId: string,
-    attachmentId: number
+    attachmentId: number,
+    indexRevision: string
   ): Promise<ExportResult> {
+    const { identity } = this.getRecoveryArchive(archiveId, {
+      expectedIndexRevision: indexRevision
+    })
     const attachment = this.getAttachment(archiveId, attachmentId)
     const defaultPath = buildSafeFilename(
       attachment.filename,
@@ -45,6 +55,7 @@ export class ExportService {
       attachment.content_type ?? undefined
     )
 
+    const { dialog } = await import('./electron-runtime')
     const save = await dialog.showSaveDialog(window, {
       defaultPath
     })
@@ -53,17 +64,21 @@ export class ExportService {
       return { cancelled: true }
     }
 
-    await this.writeAttachment(archiveId, attachment, save.filePath)
-    return { cancelled: false, path: save.filePath }
+    return this.exportAttachmentTo(archiveId, attachmentId, save.filePath, {
+      expectedIndexRevision: identity.indexRevision,
+      expectedSource: identity.sourceSnapshot
+    })
   }
 
   async exportAllAttachments(
     window: ElectronBrowserWindow,
     archiveId: string,
-    messageId: number
+    messageId: number,
+    indexRevision: string
   ): Promise<ExportResult> {
-    const archive = this.mustGetArchive(archiveId)
-    const db = this.pool.getDatabase(archive)
+    const { db, identity } = this.getRecoveryArchive(archiveId, {
+      expectedIndexRevision: indexRevision
+    })
     const attachments = db
       .prepare(
         `SELECT id, message_id, filename, content_type, content_transfer_encoding, body_offset_start, body_offset_end
@@ -74,9 +89,10 @@ export class ExportService {
       .all(messageId) as AttachmentExportRow[]
 
     if (attachments.length === 0) {
-      return { cancelled: true }
+      return { cancelled: false, paths: [] }
     }
 
+    const { dialog } = await import('./electron-runtime')
     const target = await dialog.showOpenDialog(window, {
       properties: ['openDirectory', 'createDirectory']
     })
@@ -99,8 +115,19 @@ export class ExportService {
         ),
         usedNames
       )
-      await this.writeAttachment(archiveId, attachment, filePath)
-      paths.push(filePath)
+      try {
+        await this.exportAttachmentTo(archiveId, attachment.id, filePath, {
+          expectedIndexRevision: identity.indexRevision,
+          expectedSource: identity.sourceSnapshot
+        })
+        paths.push(filePath)
+      } catch (error) {
+        return {
+          cancelled: false,
+          paths,
+          error: `Export stopped after ${paths.length} of ${attachments.length} attachments. ${error instanceof Error ? error.message : 'Please try again.'}`
+        }
+      }
     }
 
     return { cancelled: false, paths }
@@ -109,22 +136,15 @@ export class ExportService {
   async exportMessage(
     window: ElectronBrowserWindow,
     archiveId: string,
-    messageId: number
+    messageId: number,
+    indexRevision: string
   ): Promise<ExportResult> {
-    const archive = this.mustGetArchive(archiveId)
-    const db = this.pool.getDatabase(archive)
-    const message = db
-      .prepare(
-        `SELECT id, subject, mbox_offset_start, mbox_offset_end
-         FROM messages
-         WHERE id = ?`
-      )
-      .get(messageId) as MessageExportRow | undefined
+    const { identity } = this.getRecoveryArchive(archiveId, {
+      expectedIndexRevision: indexRevision
+    })
+    const message = this.getMessage(archiveId, messageId)
 
-    if (!message) {
-      throw new Error('Message not found')
-    }
-
+    const { dialog } = await import('./electron-runtime')
     const save = await dialog.showSaveDialog(window, {
       defaultPath:
         buildSafeFilename(message.subject ?? 'message', 'message') + '.eml'
@@ -134,29 +154,79 @@ export class ExportService {
       return { cancelled: true }
     }
 
-    await pipeline(
-      fs.createReadStream(archive.sourcePath, {
-        start: message.mbox_offset_start,
-        end: message.mbox_offset_end - 1
-      }),
-      new MboxRdUnescapeTransform(),
-      fs.createWriteStream(save.filePath)
-    )
-
-    return { cancelled: false, path: save.filePath }
+    return this.exportMessageTo(archiveId, messageId, save.filePath, {
+      expectedIndexRevision: identity.indexRevision,
+      expectedSource: identity.sourceSnapshot
+    })
   }
 
-  revealPath(targetPath: string): Promise<void> {
+  async revealPath(targetPath: string): Promise<void> {
+    const { shell } = await import('./electron-runtime')
     shell.showItemInFolder(targetPath)
-    return Promise.resolve()
+  }
+
+  async exportAttachmentTo(
+    archiveId: string,
+    attachmentId: number,
+    destinationPath: string,
+    options: ArchiveExportOptions = {}
+  ): Promise<ExportResult> {
+    const { archive, identity } = this.getRecoveryArchive(archiveId, options)
+    const attachment = this.getAttachment(archiveId, attachmentId)
+    await writeArchiveRangeAtomically({
+      ...options,
+      sourcePath: archive.sourcePath,
+      offsetStart: attachment.body_offset_start,
+      offsetEnd: attachment.body_offset_end,
+      destinationPath,
+      expectedSource: identity.sourceSnapshot,
+      transforms: [
+        new MboxRdUnescapeTransform(),
+        decoderForTransferEncoding(attachment.content_transfer_encoding)
+      ],
+      validateBeforeCommit: async () => {
+        this.getRecoveryArchive(archiveId, {
+          expectedIndexRevision: identity.indexRevision,
+          expectedSource: identity.sourceSnapshot
+        })
+        await options.validateBeforeCommit?.()
+      }
+    })
+    return { cancelled: false, path: destinationPath }
+  }
+
+  async exportMessageTo(
+    archiveId: string,
+    messageId: number,
+    destinationPath: string,
+    options: ArchiveExportOptions = {}
+  ): Promise<ExportResult> {
+    const { archive, identity } = this.getRecoveryArchive(archiveId, options)
+    const message = this.getMessage(archiveId, messageId)
+    await writeArchiveRangeAtomically({
+      ...options,
+      sourcePath: archive.sourcePath,
+      offsetStart: message.mbox_offset_start,
+      offsetEnd: message.mbox_offset_end,
+      destinationPath,
+      expectedSource: identity.sourceSnapshot,
+      transforms: [new MboxRdUnescapeTransform()],
+      validateBeforeCommit: async () => {
+        this.getRecoveryArchive(archiveId, {
+          expectedIndexRevision: identity.indexRevision,
+          expectedSource: identity.sourceSnapshot
+        })
+        await options.validateBeforeCommit?.()
+      }
+    })
+    return { cancelled: false, path: destinationPath }
   }
 
   private getAttachment(
     archiveId: string,
     attachmentId: number
   ): AttachmentExportRow {
-    const archive = this.mustGetArchive(archiveId)
-    const db = this.pool.getDatabase(archive)
+    const { db } = this.getRecoveryArchive(archiveId)
     const attachment = db
       .prepare(
         `SELECT id, message_id, filename, content_type, content_transfer_encoding, body_offset_start, body_offset_end
@@ -172,30 +242,46 @@ export class ExportService {
     return attachment
   }
 
-  private mustGetArchive(archiveId: string) {
+  private getMessage(archiveId: string, messageId: number): MessageExportRow {
+    const { db } = this.getRecoveryArchive(archiveId)
+    const message = db
+      .prepare(
+        `SELECT id, subject, mbox_offset_start, mbox_offset_end
+         FROM messages
+         WHERE id = ?`
+      )
+      .get(messageId) as MessageExportRow | undefined
+    if (!message) throw new Error('Message not found')
+    return message
+  }
+
+  private getRecoveryArchive(
+    archiveId: string,
+    options: ArchiveExportOptions = {}
+  ) {
     const archive = this.catalog.getArchiveById(archiveId)
     if (!archive) {
       throw new Error('Archive not found')
     }
 
-    return archive
-  }
-
-  private async writeAttachment(
-    archiveId: string,
-    attachment: AttachmentExportRow,
-    filePath: string
-  ): Promise<void> {
-    const archive = this.mustGetArchive(archiveId)
-    await pipeline(
-      fs.createReadStream(archive.sourcePath, {
-        start: attachment.body_offset_start,
-        end: attachment.body_offset_end - 1
-      }),
-      new MboxRdUnescapeTransform(),
-      decoderForTransferEncoding(attachment.content_transfer_encoding),
-      fs.createWriteStream(filePath)
-    )
+    if (archive.status !== 'ready') {
+      throw new Error(
+        'Wait for this archive to finish indexing before recovery.'
+      )
+    }
+    const db = this.pool.getDatabase(archive)
+    const identity = getArchiveRecoveryIdentity(db)
+    if (
+      (options.expectedIndexRevision &&
+        options.expectedIndexRevision !== identity.indexRevision) ||
+      (options.expectedSource &&
+        !sameSource(options.expectedSource, identity.sourceSnapshot))
+    ) {
+      throw new Error(
+        'This selection is out of date. Search the archive again before recovery.'
+      )
+    }
+    return { archive, db, identity }
   }
 }
 
@@ -219,83 +305,4 @@ function uniquePath(
 
   usedNames.add(candidate)
   return path.join(directory, candidate)
-}
-
-function decoderForTransferEncoding(encoding: string | null): Transform {
-  const normalized = (encoding ?? '').trim().toLowerCase()
-
-  if (normalized === 'base64') {
-    return new Base64DecodeTransform()
-  }
-
-  if (normalized === 'quoted-printable') {
-    return new QuotedPrintableDecodeTransform()
-  }
-
-  return new PassThrough()
-}
-
-class Base64DecodeTransform extends Transform {
-  private carry = ''
-
-  override _transform(
-    chunk: Buffer,
-    _encoding: BufferEncoding,
-    callback: (error?: Error | null) => void
-  ): void {
-    const sanitized = `${this.carry}${chunk.toString('utf8')}`.replace(
-      /\s+/g,
-      ''
-    )
-    const usableLength = sanitized.length - (sanitized.length % 4)
-
-    if (usableLength > 0) {
-      this.push(Buffer.from(sanitized.slice(0, usableLength), 'base64'))
-    }
-
-    this.carry = sanitized.slice(usableLength)
-    callback()
-  }
-
-  override _flush(callback: (error?: Error | null) => void): void {
-    if (this.carry.length > 0) {
-      this.push(Buffer.from(this.carry, 'base64'))
-    }
-
-    callback()
-  }
-}
-
-class QuotedPrintableDecodeTransform extends Transform {
-  private chunks: Buffer[] = []
-
-  override _transform(
-    chunk: Buffer,
-    _encoding: BufferEncoding,
-    callback: (error?: Error | null) => void
-  ): void {
-    this.chunks.push(chunk)
-    callback()
-  }
-
-  override _flush(callback: (error?: Error | null) => void): void {
-    const source = Buffer.concat(this.chunks).toString('utf8')
-    const normalized = source.replace(/=\r?\n/g, '')
-    const bytes: number[] = []
-
-    for (let index = 0; index < normalized.length; index += 1) {
-      if (
-        normalized[index] === '=' &&
-        /^[0-9A-Fa-f]{2}$/.test(normalized.slice(index + 1, index + 3))
-      ) {
-        bytes.push(Number.parseInt(normalized.slice(index + 1, index + 3), 16))
-        index += 2
-      } else {
-        bytes.push(normalized.charCodeAt(index))
-      }
-    }
-
-    this.push(Buffer.from(bytes))
-    callback()
-  }
 }
