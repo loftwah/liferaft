@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en-AU">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>
+      Liferaft · Recover messages and attachments from MBOX archives
+    </title>
+    <meta
+      name="description"
+      content="Search local MBOX archives, inspect the original message and recover a copy of the attachment or email you need."
+    />
+    <link rel="canonical" href="https://liferaft.loftwah.com/" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="apple-touch-icon" href="/media/liferaft-icon.png" />
+    <link rel="stylesheet" href="/site.css" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="en_AU" />
+    <meta property="og:site_name" content="Liferaft" />
+    <meta property="og:title" content="Liferaft · Local MBOX recovery" />
+    <meta
+      property="og:description"
+      content="Search local MBOX archives, inspect the original message and recover a copy of the attachment or email you need."
+    />
+    <meta property="og:url" content="https://liferaft.loftwah.com/" />
+    <meta
+      property="og:image"
+      content="https://liferaft.loftwah.com/media/liferaft-social.jpg"
+    />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="Liferaft, local MBOX recovery. Search, inspect and recover."
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Liferaft · Local MBOX recovery" />
+    <meta
+      name="twitter:description"
+      content="Search local MBOX archives and recover the messages and attachments you need."
+    />
+    <meta
+      name="twitter:image"
+      content="https://liferaft.loftwah.com/media/liferaft-social.jpg"
+    />
+    <meta
+      name="twitter:image:alt"
+      content="Liferaft, local MBOX recovery. Search, inspect and recover."
+    />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://liferaft.loftwah.com/#website",
+            "name": "Liferaft",
+            "url": "https://liferaft.loftwah.com/",
+            "inLanguage": "en-AU"
+          },
+          {
+            "@type": "SoftwareApplication",
+            "@id": "https://liferaft.loftwah.com/#app",
+            "name": "Liferaft",
+            "url": "https://liferaft.loftwah.com/",
+            "description": "Search local MBOX archives and recover messages and attachments.",
+            "applicationCategory": "UtilitiesApplication",
+            "softwareVersion": "0.1.2",
+            "operatingSystem": "macOS (Apple silicon), Windows (x64), Linux (x86-64)",
+            "softwareHelp": "https://github.com/loftwah/liferaft/tree/v0.1.2#readme",
+            "downloadUrl": [
+              "https://github.com/loftwah/liferaft/releases/download/v0.1.2/Liferaft-0.1.2-mac-arm64.dmg",
+              "https://github.com/loftwah/liferaft/releases/download/v0.1.2/Liferaft-0.1.2-win-x64.exe",
+              "https://github.com/loftwah/liferaft/releases/download/v0.1.2/Liferaft-0.1.2-linux-x86_64.AppImage"
+            ]
+          }
+        ]
+      }
+    </script>
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    <header class="shell site-header">
+      <a class="brand" href="/" aria-label="Liferaft home">
+        <img src="/media/liferaft-mark.png" width="40" height="40" alt="" />
+        <span>Liferaft</span>
+      </a>
+      <nav aria-label="Main navigation">
+        <a href="#workflow">How it works</a>
+        <a href="#download">Downloads</a>
+        <a href="https://github.com/loftwah/liferaft">Source</a>
+      </nav>
+    </header>
+    <main id="main">
+      <section class="shell hero">
+        <div class="hero-copy">
+          <h1>Find the file in your old mail.</h1>
+          <p>
+            Liferaft searches local MBOX archives and recovers messages and
+            attachments. Check the original message, then save the file you came
+            for.
+          </p>
+          <a class="button" href="#download">See downloads</a>
+        </div>
+        <figure class="app-figure">
+          <a
+            href="/media/rune-recovery-original.webp"
+            aria-label="View the full-size screenshot of the invoice search and message preview"
+          >
+            <img
+              src="/media/rune-recovery.webp"
+              width="1560"
+              height="979"
+              alt="Liferaft’s archive list, search for invoice.pdf and original message preview with attachment recovery controls"
+            />
+          </a>
+          <figcaption>
+            Fictional invoice recovery in the Liferaft 0.3.0 Rune build on Apple
+            silicon.
+          </figcaption>
+        </figure>
+      </section>
+
+      <section class="workflow" id="workflow">
+        <div class="shell section-grid">
+          <h2>From archive<br />to recovered copy.</h2>
+          <ol class="steps">
+            <li>
+              <h3>Add an archive</h3>
+              <p>
+                Open an extracted MBOX file, such as an export from Google
+                Takeout. Liferaft builds a separate local search index.
+              </p>
+            </li>
+            <li>
+              <h3>Search the index</h3>
+              <p>
+                Start with a filename, sender, subject or phrase you remember.
+                Narrow the results by archive, date or whether the message has
+                attachments.
+              </p>
+            </li>
+            <li>
+              <h3>Check the message</h3>
+              <p>
+                Use the sender, date and attachment details to check you have
+                the right result before saving anything.
+              </p>
+            </li>
+            <li>
+              <h3>Recover a copy</h3>
+              <p>
+                Save the attachment or the original message as an
+                <code>.eml</code> file. Your archive stays in place.
+              </p>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <section class="shell section-grid" id="download">
+        <div>
+          <h2>Get Liferaft.</h2>
+          <p>
+            The published desktop release is v0.1.2, the earlier Electron
+            edition. Its installers are unsigned. The Rune edition has been
+            packaged and tested locally on Apple silicon. The public Rune
+            download is pending macOS distribution signing.
+          </p>
+          <a
+            class="button"
+            href="https://github.com/loftwah/liferaft/releases/tag/v0.1.2"
+            >View the v0.1.2 release</a
+          >
+        </div>
+        <ul class="downloads">
+          <li>
+            <a
+              href="https://github.com/loftwah/liferaft/releases/download/v0.1.2/Liferaft-0.1.2-mac-arm64.dmg"
+              ><strong>macOS</strong
+              ><span>Apple silicon · v0.1.2 · DMG</span></a
+            >
+          </li>
+          <li>
+            <a
+              href="https://github.com/loftwah/liferaft/releases/download/v0.1.2/Liferaft-0.1.2-win-x64.exe"
+              ><strong>Windows</strong><span>x64 · v0.1.2 · EXE</span></a
+            >
+          </li>
+          <li>
+            <a
+              href="https://github.com/loftwah/liferaft/releases/download/v0.1.2/Liferaft-0.1.2-linux-x86_64.AppImage"
+              ><strong>Linux</strong><span>x86-64 · v0.1.2 · AppImage</span></a
+            >
+          </li>
+        </ul>
+      </section>
+
+      <section class="help">
+        <div class="shell section-grid">
+          <div>
+            <h2>Before you start.</h2>
+            <ul class="resources">
+              <li>
+                <a href="https://github.com/loftwah/liferaft/tree/v0.1.2#readme"
+                  >v0.1.2 setup and recovery</a
+                >
+              </li>
+              <li>
+                <a href="https://github.com/loftwah/liferaft#readme"
+                  >Current source and build instructions</a
+                >
+              </li>
+              <li>
+                <a
+                  href="https://github.com/loftwah/liferaft/blob/main/docs/AGENT_RECOVERY.md"
+                  >Agent access guide</a
+                >
+              </li>
+              <li>
+                <a href="https://github.com/loftwah/liferaft/issues"
+                  >Report a problem</a
+                >
+              </li>
+            </ul>
+          </div>
+          <div class="questions">
+            <details open>
+              <summary>What files can I open?</summary>
+              <p>
+                Liferaft reads local MBOX files. Extract the MBOX from a ZIP or
+                Takeout download first. Keep the source available at the same
+                path after indexing, and leave room on disk for the index and
+                recovered copies. The Rune importer accepts messages up to 64
+                MiB each.
+              </p>
+            </details>
+            <details>
+              <summary>Where does indexing happen?</summary>
+              <p>
+                Liferaft processes and indexes the archive on your computer.
+                Removing the index leaves the original archive in place.
+              </p>
+            </details>
+            <details>
+              <summary>What can an optional agent see?</summary>
+              <p>
+                In the Rune edition, agent access starts off. You choose which
+                indexed archives the local agent can search and where it can
+                save recovered copies. Your chosen agent may send returned mail
+                details to its model provider. You can revoke future access in
+                Liferaft.
+              </p>
+            </details>
+            <details>
+              <summary>What if the archive has changed?</summary>
+              <p>
+                Keep the original while you work. If you replace or edit the
+                source, reindex it before relying on search results or
+                recovering a copy.
+              </p>
+            </details>
+          </div>
+        </div>
+      </section>
+    </main>
+    <footer class="shell site-footer">
+      <span>Liferaft, by Loftwah</span>
+      <nav aria-label="Project resources">
+        <a href="/media/">Media files</a>
+        <a href="https://woodhouse.loftwah.com/projects/liferaft/"
+          >Woodhouse project</a
+        >
+        <a href="https://github.com/loftwah/liferaft/blob/main/LICENSE"
+          >MIT licence</a
+        >
+      </nav>
+    </footer>
+  </body>
+</html>
