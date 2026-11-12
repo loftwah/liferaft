@@ -31,10 +31,13 @@ for the index. Reindexing may temporarily need space for two copies of the index
 
 ## Downloads and source
 
-The [release page](https://github.com/loftwah/liferaft/releases) lists published
-installers. v0.1.2 uses Electron. The Rune source builds an Apple silicon macOS
-package locally. See the [verification ledger](docs/verification.md) for its
-installed and published status.
+[Download Liferaft v0.3.0](https://github.com/loftwah/liferaft/releases/download/v0.3.0/Liferaft-0.3.0-mac-arm64.dmg)
+for Apple silicon Macs on macOS 13.5 or later. Open the DMG, drag Liferaft into
+Applications and try opening it. The build is unnotarised. If macOS blocks it
+and you trust the download, follow Apple’s [Open Anyway instructions](https://support.apple.com/en-us/102445).
+The [release notes](https://github.com/loftwah/liferaft/releases/tag/v0.3.0)
+include the SHA-256 checksum. The [earlier v0.1.2 release](https://github.com/loftwah/liferaft/releases/tag/v0.1.2)
+uses Electron and includes Windows and Linux installers.
 
 Rune reuses the existing catalogue, indexes and agent settings in
 `~/Library/Application Support/liferaft` on macOS. Quit older Liferaft builds

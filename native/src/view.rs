@@ -1,6 +1,7 @@
 use rune::tok::{TextStyle, type_};
 use rune::{
-    Color, Cx, El, GrowthSpec, LiveRegion, ScrollSpec, TextEdit, Tx, col, el, row, text, text_input,
+    Color, Cx, El, GrowthSpec, LiveRegion, ScrollSpec, Spring, TextEdit, Tx, col, el, row, text,
+    text_input,
 };
 use serde_json::json;
 
@@ -206,6 +207,15 @@ fn count(value: u64, singular: &str, plural: &str) -> String {
     format!("{value} {}", if value == 1 { singular } else { plural })
 }
 
+fn indexed_percent(progress: &crate::model::Progress) -> u64 {
+    progress
+        .bytes_processed
+        .saturating_mul(100)
+        .checked_div(progress.total_bytes)
+        .unwrap_or(0)
+        .min(100)
+}
+
 fn archive_detail(a: &Archive) -> String {
     if a.needs_reindex {
         return "Reindex required".into();
@@ -214,14 +224,9 @@ fn archive_detail(a: &Archive) -> String {
         "indexing" => a.progress.as_ref().map_or_else(
             || "Starting index…".into(),
             |p| {
-                let percent = p
-                    .bytes_processed
-                    .saturating_mul(100)
-                    .checked_div(p.total_bytes)
-                    .unwrap_or(0);
                 format!(
                     "Indexing · {}% · {} messages",
-                    percent.min(100),
+                    indexed_percent(p),
                     p.messages_processed
                 )
             },
@@ -235,6 +240,25 @@ fn archive_detail(a: &Archive) -> String {
     }
 }
 
+fn index_progress(percent: u64) -> El {
+    // The archive row already names the percentage to assistive technology.
+    row()
+        .key("index-track")
+        .w_full()
+        .h(4.0)
+        .radius(2.0)
+        .fill(line())
+        .a11y_hidden()
+        .child(
+            el().key("index-fill")
+                .w_frac(percent as f32 / 100.0)
+                .h(4.0)
+                .radius(2.0)
+                .fill(accent())
+                .motion(Spring::new(0.24, 0.0)),
+        )
+}
+
 fn archives(s: &State) -> El {
     let busy_index = s.archives.iter().any(|a| a.status == "indexing");
     let mut list = col().w_full().padding(9.0).gap(3.0).child(archive_row(
@@ -245,13 +269,21 @@ fn archives(s: &State) -> El {
         s.ready(),
     ));
     for a in &s.archives {
-        list = list.child(archive_row(
+        let mut item = archive_row(
             Some(a.id.clone()),
             &a.name,
             archive_detail(a),
             s.archive.as_ref() == Some(&a.id),
             s.ready(),
-        ));
+        );
+        if let Some(progress) = a
+            .progress
+            .as_ref()
+            .filter(|p| a.status == "indexing" && p.total_bytes > 0)
+        {
+            item = item.child(index_progress(indexed_percent(progress)));
+        }
+        list = list.child(item);
     }
     let mut section = col()
         .w(224.0)
@@ -415,13 +447,16 @@ fn result_row(s: &State, index: usize) -> El {
         date(found.date.as_deref()),
         found.archive_name
     );
-    col()
+    let item = col()
         .h(82.0)
         .w_full()
         .fill(if selected { blue() } else { light() })
         .hover(blue())
         .role("button")
-        .label(format!("{main}. {origin}"))
+        .label(format!(
+            "{main}. {}{origin}",
+            if selected { "Selected. " } else { "" }
+        ))
         .focusable(true)
         .focus_ring(2.0, -2.0, accent())
         .on_press_tx(move |s: &mut State, tx| s.select(&id, tx))
@@ -437,7 +472,21 @@ fn result_row(s: &State, index: usize) -> El {
                 .child(label(details).truncate())
                 .child(label(origin).truncate()),
         )
-        .child(separator())
+        .child(separator());
+    if selected {
+        item.child(
+            el().key("result-selection")
+                .matched("recovery-result-selection")
+                .absolute(1.0, 12.0)
+                .size(2.0, 57.0)
+                .radius(1.0)
+                .fill(accent())
+                .motion(Spring::new(0.24, 0.0))
+                .a11y_hidden(),
+        )
+    } else {
+        item
+    }
 }
 
 fn date(value: Option<&str>) -> &str {
@@ -936,4 +985,62 @@ pub fn view(s: &State, _: &mut Cx<State>) -> El {
                 .truncate(),
             ),
     )
+}
+
+#[cfg(test)]
+mod motion_tests {
+    use super::*;
+    use crate::model::Match;
+    use rune::{Env, Runtime};
+
+    fn result(id: &str) -> Match {
+        Match {
+            result_id: id.into(),
+            index_revision: "fixture".into(),
+            archive_id: "archive".into(),
+            archive_name: "Fictional".into(),
+            id: 1,
+            subject: id.into(),
+            from_text: "Sender".into(),
+            date: None,
+            snippet: String::new(),
+            attachment_id: None,
+            attachment_filename: None,
+            suggested_filename: None,
+            message_filename: "fixture.eml".into(),
+        }
+    }
+
+    #[test]
+    fn selection_marker_springs_to_the_next_row_and_snaps_with_reduced_motion() {
+        for reduced in [false, true] {
+            let state = State {
+                results: vec![result("first"), result("second")],
+                selected: Some("first".into()),
+                ..State::default()
+            };
+            let mut runtime = Runtime::new(state, view, (1200.0, 780.0), Env::new(false, 1.0));
+            runtime.set_system_reduced_motion(reduced);
+            runtime.frame(0.0);
+            let position =
+                |runtime: &Runtime<State>| runtime.presented("result-selection").unwrap().0[1];
+            let start = position(&runtime);
+            runtime.update(|s, tx| {
+                s.selected = Some("second".into());
+                tx.animated();
+            });
+            runtime.frame(1.0 / 60.0);
+            let early = position(&runtime);
+            for _ in 0..30 {
+                runtime.frame(1.0 / 60.0);
+            }
+            let end = position(&runtime);
+            assert!((end - start - 82.0).abs() < 0.5);
+            if reduced {
+                assert!((early - end).abs() < 0.5);
+            } else {
+                assert!(start <= early && early < end - 1.0);
+            }
+        }
+    }
 }
