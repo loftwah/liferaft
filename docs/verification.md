@@ -29,7 +29,7 @@ source revision associated with the installed candidate.
   export. Revoking access in Liferaft returned `access_disabled` to the
   client. OpenCode v2’s configuration is documented. Its local provider
   returned a quota error during its model run.
-- Formatting, TypeScript, 34 Bun tests and 11 Node integration tests passed.
+- Formatting, TypeScript, 36 Bun tests and 11 Node integration tests passed.
   The private-pipe regression covers a legacy catalogue row, recovery after
   reindex, HTML-only search and passive preview, stale selections, existing
   output collisions and exact exports. The crash test force-kills a fixture
