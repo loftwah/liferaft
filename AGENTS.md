@@ -111,3 +111,10 @@ never authorises a new external send.
   private environment/store, never a tracked file, payload, screenshot or log.
   Report notification faults accurately and reconcile uncertain sends before
   retrying. Do not add a second workflow or deployment system for announcements.
+
+## Task hygiene and quiet verification — reviewed 14 November 2026
+
+- Make cleanup part of the task, including failure and cancellation. Track the exact resources this run creates and release them before finishing: browser tabs, contexts, automation sessions and test servers; scratch directories, test downloads, temporary logs and disposable build output. Close only resources owned by the run, not MP's or another agent's live work. Report any failed teardown with its exact path or session and next action.
+- Run automated browser checks headlessly and without stealing desktop focus by default. Use a visible browser only when the actual inspection or MP's request requires it. Keep useful failure output and report failures; quiet testing does not mean hiding them.
+- Once a task is delivered or intentionally abandoned, preserve any required source, unpushed changes, evidence and artwork under the project's existing rules, then remove its inactive task-owned worktree with Git and clean its disposable scratch sessions, traces and snapshots using the owning tool's supported cleanup. Do not purge shared conversation history, credentials, databases, other agents' work or an active session. Never leave a whole temporary checkout or dependency install as routine evidence.
+- The normal end-to-end target remains three minutes, with five minutes the maximum normal target from first relevant change through verified production; cleanup and the smallest risk-appropriate tests share that same budget. Reuse valid checks and outputs. Keep the existing specific safety, data integrity, release and physical-acceptance exceptions, and report the concrete cause if the target is exceeded.
