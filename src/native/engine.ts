@@ -1,4 +1,5 @@
 import { isMainThread, parentPort, workerData } from 'node:worker_threads'
+import { version } from '../../package.json'
 import { importMboxFile } from '../utility/mbox-stream'
 import { CatalogStore } from '../main/catalog'
 import { ArchiveDatabasePool } from '../main/archive-db'
@@ -45,7 +46,7 @@ async function main() {
     pool,
     trackTemporary: journal.track,
     access: new AgentAccessStore(dataPath),
-    version: '0.3.0',
+    version,
     onClose: () => {
       pool.closeAll()
       catalog.close()

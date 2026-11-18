@@ -95,7 +95,7 @@ Cancellation stops outstanding reads/writes and removes task-owned temporary out
 
 ## Verification and limitations
 
-`bun test tests/mcp.test.ts` checks the capability boundary and exact extraction with synthetic fixtures. `bun run test:integration` additionally exercises the real importer, native SQLite catalogue/index access, read-only handles and stdio tools over both supported protocol generations. Tests cover no matches, corrupt indexes, stale and missing sources, scope denial, malicious message text, folder replacement, collision/retry, cancellation and revocation before publication.
+`bun test tests/mcp.test.ts` checks the capability boundary with synthetic fixtures. `bun run test:integration` exercises the real importer, exact extraction, native SQLite and stdio over both supported protocol generations. Run the check relevant to the change.
 
 Build and protocol checks do not establish a shipped desktop release. Release evidence must name the installed version, operating system and architecture, and demonstrate import, search, preview, export and the configured agent journey using fictional mail. Keep unverified operating systems and client combinations explicit. Do not put private mail, source paths or real recovered documents in public evidence.
 

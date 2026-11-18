@@ -17,6 +17,7 @@ import { fictionalInvoiceMbox, fictionalInvoicePdf } from '../fixtures/invoice'
 
 type Archive = { id: string; status: string; needsReindex: boolean }
 type Response<T> = { result?: T; error?: string }
+const enginePath = process.env.LIFERAFT_TEST_ENGINE ?? 'out/native/engine.mjs'
 
 test(
   'native pipe keeps catalogue identities and recovers exact bytes with a passive HTML preview',
@@ -43,7 +44,15 @@ test(
       ].join('\r\n')
     )
     const invoice = fictionalInvoiceMbox()
-    const archive = Buffer.concat([invoice, html])
+    const escapedInvoice = Buffer.from(
+      invoice
+        .toString()
+        .replace(
+          'This is fictional test mail.',
+          'This is fictional test mail.\r\n>From the accounts desk'
+        )
+    )
+    const archive = Buffer.concat([escapedInvoice, html])
     await fs.writeFile(source, archive)
     await fs.writeFile(invalid, 'A file that is not an archive')
     const legacyId = randomUUID()
@@ -58,13 +67,9 @@ test(
     })
     legacy.close()
 
-    const engine = spawn(
-      process.execPath,
-      ['out/native/engine.mjs', '--desktop', data],
-      {
-        stdio: ['pipe', 'pipe', 'inherit']
-      }
-    )
+    const engine = spawn(process.execPath, [enginePath, '--desktop', data], {
+      stdio: ['pipe', 'pipe', 'inherit']
+    })
     const exited = once(engine, 'close')
     const lines = createInterface({ input: engine.stdout })[
       Symbol.asyncIterator
@@ -178,7 +183,15 @@ test(
       )
       assert.deepEqual(
         await fs.readFile(original),
-        invoice.subarray(invoice.indexOf(10) + 1)
+        Buffer.from(
+          escapedInvoice
+            .subarray(escapedInvoice.indexOf(10) + 1)
+            .toString()
+            .replace(
+              '\r\n>From the accounts desk',
+              '\r\nFrom the accounts desk'
+            )
+        )
       )
       assert.deepEqual(await fs.readFile(source), archive)
       assert.equal(
@@ -187,6 +200,18 @@ test(
       )
       await waitForIndex()
       assert.match((await request('preview', ref)).error ?? '', /out of date/)
+      assert.match(
+        (
+          await request('recover', {
+            ...args,
+            destination: path.join(dir, 'stale.pdf')
+          })
+        ).error ?? '',
+        /out of date/
+      )
+      await assert.rejects(fs.stat(path.join(dir, 'stale.pdf')), {
+        code: 'ENOENT'
+      })
       const indexFiles = await fs.readdir(path.join(data, 'archives'))
       assert.equal(
         indexFiles.filter((file) => file.endsWith('.sqlite')).length,
@@ -286,13 +311,9 @@ test(
       assert.deepEqual(await childExit, [null, 'SIGKILL'])
       assert.equal(await fs.readFile(temporary, 'utf8'), 'Interrupted recovery')
 
-      const engine = spawn(
-        process.execPath,
-        ['out/native/engine.mjs', '--desktop', data],
-        {
-          stdio: ['pipe', 'pipe', 'inherit']
-        }
-      )
+      const engine = spawn(process.execPath, [enginePath, '--desktop', data], {
+        stdio: ['pipe', 'pipe', 'inherit']
+      })
       const engineExit = once(engine, 'close')
       engine.stdin.end()
       assert.deepEqual(await engineExit, [0, null])

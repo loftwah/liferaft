@@ -104,13 +104,9 @@ class WireClient {
       executable ?? process.execPath,
       executable
         ? argumentsOverride
-        : [
-            '--import',
-            'tsx',
-            serverPath,
-            dataPath,
-            ...(pauseExport ? ['--pause-export'] : [])
-          ],
+        : pauseExport
+          ? ['--import', 'tsx', serverPath, dataPath]
+          : ['out/native/engine.mjs', '--mcp', dataPath],
       {
         stdio: ['pipe', 'pipe', 'pipe'],
         env: { ...process.env, LIFERAFT_DATA_DIR: dataPath }
@@ -306,6 +302,15 @@ test('native SQLite and stdio recover Alice’s PDF, reject scope expansion and 
     assert.deepEqual(
       fs.readFileSync(recovered.structuredContent.path as string),
       invoice
+    )
+    const retried = await client.call('liferaft_export_attachment', {
+      sourceRef: attachment.sourceRef,
+      directoryId: f.grant.exportDirectories[0].id
+    })
+    assert.equal(retried.structuredContent.status, 'already_exported')
+    assert.equal(
+      retried.structuredContent.path,
+      recovered.structuredContent.path
     )
     assert.deepEqual(fs.readFileSync(f.sourcePath), f.original)
     f.access.revoke()

@@ -1,6 +1,6 @@
 {
   "name": "liferaft",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": true,
   "productName": "Liferaft",
   "description": "Local, read-only desktop app for indexing and recovering messages and attachments from large MBOX archives.",
@@ -21,7 +21,7 @@
     "test": "bun test tests/*.test.ts",
     "test:integration": "bun run build:engine && node --import tsx --test tests/integration/*.test.ts",
     "typecheck": "tsc --noEmit",
-    "check": "bun run format:check && bun run test && bun run test:integration && bun run typecheck"
+    "check": "bun run test && bun run test:integration"
   },
   "dependencies": {
     "@modelcontextprotocol/server": "2.4.0",

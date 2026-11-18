@@ -33,7 +33,7 @@ engine="$resources/engine"
 mkdir -p "$app/Contents/MacOS" "$engine"
 (cd native && MACOSX_DEPLOYMENT_TARGET=13.0 cargo build --locked --release)
 install -m 755 native/target/release/liferaft "$app/Contents/MacOS/Liferaft"
-bun build src/native/engine.ts --target=node --packages=external --outfile="$engine/engine.mjs"
+bun run build:engine -- --outfile="$engine/engine.mjs"
 cp package.json bun.lock "$engine/"
 (cd "$engine" && bun install --production --frozen-lockfile --ignore-scripts)
 rm "$engine/package.json" "$engine/bun.lock"
