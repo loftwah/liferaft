@@ -8,16 +8,9 @@ requested outcome; optional memory services are not required to begin.
 
 Use Node 24.22.1, Bun 1.4.4 and the Rust pin under `native/`.
 
-```sh
-bun install --frozen-lockfile
-bun run check
-bun run build
-```
-
-`check` includes formatting, Bun unit tests, Node integration tests and
-TypeScript. `bun run dev` opens Rune. `bun run dist` builds a local macOS
-package. Read [toolchain.md](docs/toolchain.md) before changing dependencies
-or packaging.
+Run `bun install --frozen-lockfile` when dependencies need installing.
+`bun run dev` opens Rune. `bun run dist` builds the macOS package.
+Read [toolchain.md](docs/toolchain.md) before changing dependencies or packaging.
 
 Inspect `git status` before editing and preserve unrelated work. Use fictional
 fixtures and task-owned temporary directories. The reproducible local fixture is:
@@ -70,6 +63,18 @@ relevant file/symbol, and recheck it after edits.
 
 ## Completion and release evidence
 
+**Two minutes total, maximum**, from the first required check through verified
+production for a routine release. Use one clock across checks, build, upload
+and live verification. For source-only work, stop the clock at verified main.
+Over 120 seconds is a breach. Report the elapsed time and the bottleneck.
+
+Run the smallest check that covers the changed behavior. Keep regression tests
+for critical failure modes such as archive integrity, export safety, permissions
+and recovery after interruption. Prefer one check through the shared engine
+when it covers the same behavior. Skip blanket formatting, test, typecheck and
+build gates by default. Build the release package once and smoke the affected
+path from that package. Keep required integrity, signing and safety checks.
+
 Report what changed, the source version, the checks that actually ran and the
 remaining limits. [verification.md](docs/verification.md) records the current
 campaign; the PR records final counts and source/merge commits. A source version
@@ -117,4 +122,3 @@ never authorises a new external send.
 - Make cleanup part of the task, including failure and cancellation. Track the exact resources this run creates and release them before finishing: browser tabs, contexts, automation sessions and test servers; scratch directories, test downloads, temporary logs and disposable build output. Close only resources owned by the run, not MP's or another agent's live work. Report any failed teardown with its exact path or session and next action.
 - Run automated browser checks headlessly and without stealing desktop focus by default. Use a visible browser only when the actual inspection or MP's request requires it. Keep useful failure output and report failures; quiet testing does not mean hiding them.
 - Once a task is delivered or intentionally abandoned, preserve any required source, unpushed changes, evidence and artwork under the project's existing rules, then remove its inactive task-owned worktree with Git and clean its disposable scratch sessions, traces and snapshots using the owning tool's supported cleanup. Do not purge shared conversation history, credentials, databases, other agents' work or an active session. Never leave a whole temporary checkout or dependency install as routine evidence.
-- The normal end-to-end target remains three minutes, with five minutes the maximum normal target from first relevant change through verified production; cleanup and the smallest risk-appropriate tests share that same budget. Reuse valid checks and outputs. Keep the existing specific safety, data integrity, release and physical-acceptance exceptions, and report the concrete cause if the target is exceeded.

@@ -204,9 +204,8 @@ Use Node 24.15 or newer within Node 24, and Bun 1.4.4:
 
 ```sh
 bun install --frozen-lockfile
-bun run check
 bun run scripts/create-recovery-fixture.ts
-bun run start:built
+bun run dev
 ```
 
 The fixture command prints a temporary MBOX path, a recovery folder and the

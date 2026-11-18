@@ -34,11 +34,11 @@ for the index. Reindexing may temporarily need space for two copies of the index
 
 ## Downloads and source
 
-[Download Liferaft v0.3.1](https://github.com/loftwah/liferaft/releases/download/v0.3.1/Liferaft-0.3.1-mac-arm64.dmg)
+[Download Liferaft v0.3.2](https://github.com/loftwah/liferaft/releases/download/v0.3.2/Liferaft-0.3.2-mac-arm64.dmg)
 for Apple silicon Macs on macOS 13.5 or later. Open the DMG, drag Liferaft into
 Applications and try opening it. The build is unnotarised. If macOS blocks it
 and you trust the download, follow Apple’s [Open Anyway instructions](https://support.apple.com/en-us/102445).
-The [release notes](https://github.com/loftwah/liferaft/releases/tag/v0.3.1)
+The [release notes](https://github.com/loftwah/liferaft/releases/tag/v0.3.2)
 include the SHA-256 checksum. The [earlier v0.1.2 release](https://github.com/loftwah/liferaft/releases/tag/v0.1.2)
 uses Electron and includes Windows and Linux installers.
 
