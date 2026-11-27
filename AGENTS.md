@@ -1,5 +1,11 @@
 # Liferaft agent entry point
 
+## User-facing design — owner direction, 28 November 2026
+
+For anything a user sees, reads or touches, apply the [portfolio design bar](https://github.com/loftwah/app-composer/blob/main/docs/visual-direction.md#portfolio-design-bar) and [owner direction](https://github.com/loftwah/app-composer/issues/1422). Begin with a distinct, sufficiently bold proposal that the owner may want to pull back. Aim for sharp, modern, bright, fun and neon when it suits the product's visual identity. Learn from several successful outside products. Carry the same intent into copy and interaction, and preserve this project's established safety, access and release rules.
+
+Apply the direction to the public first impression and the real local archive recovery flow. Keep archive contents local and preserve clear recovery and export states. [Related project issue](https://github.com/loftwah/liferaft/issues/20).
+
 Liferaft is a local, read-only MBOX recovery app. Start with the actual checkout,
 [README.md](README.md) and the task's existing issue. Keep the work scoped to the
 requested outcome; optional memory services are not required to begin.
